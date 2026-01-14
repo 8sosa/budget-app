@@ -1,9 +1,9 @@
-// src/lib/auth.ts
-import { PrismaAdapter } from "@auth/prisma-adapter";
 import { NextAuthOptions } from "next-auth";
+import { PrismaAdapter } from "@next-auth/prisma-adapter";
+import GoogleProvider from "next-auth/providers/google";
+import CredentialsProvider from "next-auth/providers/credentials";
 import prisma from "@/lib/prisma";
-import GoogleProvider from "next-auth/providers/google"; 
-import CredentialsProvider from "next-auth/providers/credentials"; 
+import bcrypt from "bcryptjs";
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
@@ -16,45 +16,62 @@ export const authOptions: NextAuthOptions = {
       clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
     }),
     CredentialsProvider({
-      name: "Email",
+      name: "credentials",
       credentials: {
-        email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" }
+        email: { label: "Email", type: "text" },
+        password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        if (!credentials?.email) return null;
-        // For testing/demo purposes only:
-        const user = await prisma.user.upsert({
+        // 1. Check if email/password are provided
+        if (!credentials?.email || !credentials?.password) {
+          throw new Error("Invalid credentials");
+        }
+
+        // 2. Find user in DB
+        const user = await prisma.user.findUnique({
           where: { email: credentials.email },
-          update: {},
-          create: {
-            email: credentials.email,
-            name: "Test User",
-          }
         });
+
+        // 3. If no user or no password (e.g. Google-only account), fail
+        if (!user || !user.password) {
+          throw new Error("Invalid credentials");
+        }
+
+        // 4. Check if password matches
+        const isCorrectPassword = await bcrypt.compare(
+          credentials.password,
+          user.password
+        );
+
+        if (!isCorrectPassword) {
+          throw new Error("Invalid credentials");
+        }
+
+        // 5. Return user if valid
         return user;
-      }
+      },
     }),
   ],
   callbacks: {
     async session({ session, token }) {
       if (session.user && token.sub) {
         // @ts-ignore
-        session.user.id = token.sub; 
+        session.user.id = token.sub;
       }
       return session;
     },
-    // 👇 ADD THIS REDIRECT CALLBACK 👇
     async redirect({ url, baseUrl }) {
       // If the user is just going to the homepage, force them to Dashboard
       if (url === baseUrl || url === "/") {
         return `${baseUrl}/dashboard`;
       }
-      // Otherwise, if they were trying to visit a specific link, let them go there
+      // Allow relative callback URLs
       if (url.startsWith("/")) return `${baseUrl}${url}`;
+      // Allow callback URLs on the same origin
       else if (new URL(url).origin === baseUrl) return url;
       
       return `${baseUrl}/dashboard`;
     },
   },
+  secret: process.env.NEXTAUTH_SECRET,
 };
