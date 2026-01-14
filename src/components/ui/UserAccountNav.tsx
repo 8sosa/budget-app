@@ -26,12 +26,12 @@ export default function UserAccountNav() {
   return (
     <>
       {/* Dashboard Link (Desktop) */}
-      <Link
+      {/* <Link
         href="/dashboard"
         className="hidden sm:block text-sm font-medium text-slate-600 hover:text-indigo-600 transition-colors mr-2"
       >
         Dashboard
-      </Link>
+      </Link> */}
 
       {/* User Info (Hidden on mobile) */}
       <div className="hidden text-right sm:block">

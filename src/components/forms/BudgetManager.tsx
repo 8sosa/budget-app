@@ -81,13 +81,13 @@ export default function BudgetManager({ globalBudget, budgets }: Props) {
         <div className="absolute top-0 right-0 -mt-4 -mr-4 h-24 w-24 rounded-full bg-white/20 blur-xl"></div>
         <div className="absolute bottom-0 left-0 -mb-4 -ml-4 h-20 w-20 rounded-full bg-blue-500/20 blur-xl"></div>
 
-        <div className="relative p-6">
+        <div className="relative p-5 sm:p-6">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-xs font-bold tracking-widest uppercase text-indigo-100/80">Total Monthly Limit</h3>
+            <h3 className="text-[10px] sm:text-xs font-bold tracking-widest uppercase text-indigo-100/80">Total Monthly Limit</h3>
             {!isEditingGlobal && (
               <button 
                 onClick={() => setIsEditingGlobal(true)} 
-                className="text-xs font-medium text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full px-3 py-1 transition-colors"
+                className="text-[10px] sm:text-xs font-medium text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full px-2 py-1 sm:px-3 sm:py-1 transition-colors"
               >
                 Edit Cap
               </button>
@@ -96,31 +96,36 @@ export default function BudgetManager({ globalBudget, budgets }: Props) {
 
           {isEditingGlobal ? (
             // EDIT GLOBAL MODE
-            <div className="flex items-center gap-3 animate-in fade-in duration-200">
-              <span className="text-2xl font-bold opacity-50">#</span>
-              <input 
-                type="number" 
-                value={tempGlobal} 
-                onChange={(e) => setTempGlobal(parseFloat(e.target.value) || 0)} 
-                className="w-full bg-transparent border-b-2 border-white/30 focus:border-white text-3xl font-bold focus:outline-none text-white placeholder-white/50" 
-                autoFocus 
-              />
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 animate-in fade-in duration-200">
+              <div className="flex items-center w-full">
+                <span className="text-xl sm:text-2xl font-bold opacity-50 mr-1">#</span>
+                <input 
+                    type="number" 
+                    value={tempGlobal} 
+                    onChange={(e) => setTempGlobal(parseFloat(e.target.value) || 0)} 
+                    className="w-full bg-transparent border-b-2 border-white/30 focus:border-white text-2xl sm:text-3xl font-bold focus:outline-none text-white placeholder-white/50" 
+                    autoFocus 
+                />
+              </div>
               <button 
                 onClick={handleUpdateGlobal} 
                 disabled={isSaving} 
-                className="bg-white text-indigo-600 hover:bg-indigo-50 px-4 py-2 rounded-lg text-sm font-bold shadow-sm"
+                className="w-full sm:w-auto bg-white text-indigo-600 hover:bg-indigo-50 px-4 py-2 rounded-lg text-sm font-bold shadow-sm"
               >
                 Save
               </button>
             </div>
           ) : (
             // VIEW GLOBAL MODE
-            <div className="text-4xl font-extrabold tracking-tight">#{globalBudget.toLocaleString()}</div>
+            // Responsive text size: smaller on mobile, larger on desktop
+            <div className="text-3xl sm:text-4xl font-extrabold tracking-tight truncate">
+                #{globalBudget.toLocaleString()}
+            </div>
           )}
 
           {/* Progress Bar Area */}
-          <div className="mt-6 space-y-2">
-            <div className="flex justify-between text-xs font-medium text-indigo-100/70">
+          <div className="mt-4 sm:mt-6 space-y-2">
+            <div className="flex flex-col sm:flex-row justify-between text-xs font-medium text-indigo-100/70 gap-1 sm:gap-0">
               <span>Allocated: <span className="text-white">#{totalAllocated.toLocaleString()}</span></span>
               <span className={isOverBudget ? "text-red-200 font-bold" : "text-emerald-200"}>
                 {isOverBudget ? `⚠️ Over by #${Math.abs(unallocated).toLocaleString()}` : `Remaining: #${unallocated.toLocaleString()}`}
@@ -185,19 +190,18 @@ export default function BudgetManager({ globalBudget, budgets }: Props) {
             >
               
               {/* LEFT SIDE: Name */}
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-indigo-50 text-indigo-500 flex items-center justify-center">
-                    {/* Generic Pie Chart Icon */}
+              <div className="flex items-center gap-3 overflow-hidden">
+                <div className="w-10 h-10 shrink-0 rounded-full bg-indigo-50 text-indigo-500 flex items-center justify-center">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path><path d="M22 12A10 10 0 0 0 12 2v10z"></path></svg>
                 </div>
-                <div>
-                  <p className="font-bold text-slate-700 text-sm">{budget.category}</p>
+                <div className="min-w-0">
+                  <p className="font-bold text-slate-700 text-sm truncate">{budget.category}</p>
                   <p className="text-xs text-slate-400">Monthly Limit</p>
                 </div>
               </div>
 
               {/* RIGHT SIDE: Value & Actions */}
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 sm:gap-3 pl-2">
                 
                 {editingId === budget.id ? (
                   // EDIT MODE
@@ -206,7 +210,7 @@ export default function BudgetManager({ globalBudget, budgets }: Props) {
                       type="number" 
                       value={editAmount}
                       onChange={(e) => setEditAmount(e.target.value)}
-                      className="w-20 text-right bg-slate-50 rounded border border-indigo-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 py-1 px-2 text-sm font-bold text-slate-800 outline-none"
+                      className="w-16 sm:w-20 text-right bg-slate-50 rounded border border-indigo-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 py-1 px-1 sm:px-2 text-sm font-bold text-slate-800 outline-none"
                       autoFocus
                     />
                     <button onClick={() => saveEdit(budget.category)} className="text-emerald-600 hover:bg-emerald-50 p-1.5 rounded-md transition-colors">
@@ -219,10 +223,10 @@ export default function BudgetManager({ globalBudget, budgets }: Props) {
                 ) : (
                   // VIEW MODE
                   <>
-                    <p className="font-bold text-slate-700">#{budget.limit.toLocaleString()}</p>
+                    <p className="font-bold text-slate-700 text-sm sm:text-base">#{budget.limit.toLocaleString()}</p>
                     
-                    {/* Hover Actions */}
-                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                    {/* Hover Actions: Changed logic for mobile */}
+                    <div className="flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-200">
                       <button 
                         onClick={() => startEditing(budget)}
                         className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors"

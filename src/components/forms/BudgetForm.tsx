@@ -5,7 +5,13 @@ import { useRouter } from "next/navigation";
 
 const CATEGORIES = ["Food", "Transport", "Utilities", "Entertainment", "Shopping", "Health", "Housing", "Other"];
 
-export default function BudgetManager() {
+// Optional: You might want to pass existing budgets via props later to display them
+type Props = {
+  globalBudget?: number;
+  budgets?: any[]; 
+};
+
+export default function BudgetManager({ globalBudget, budgets }: Props) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
 
@@ -19,35 +25,51 @@ export default function BudgetManager() {
       amount: Number(formData.get("amount")),
     };
 
-    await fetch("/api/budgets", {
-      method: "POST",
-      body: JSON.stringify(data),
-    });
-
-    setLoading(false);
-    router.refresh(); 
+    try {
+        await fetch("/api/budgets", {
+            method: "POST",
+            body: JSON.stringify(data),
+        });
+        router.refresh();
+        // Optional: Reset form here if needed
+        (e.target as HTMLFormElement).reset();
+    } catch (error) {
+        console.error("Failed to save budget", error);
+    } finally {
+        setLoading(false);
+    }
   }
 
   return (
     <div className="w-full">
-        {/* We removed the outer bg-white card because this now sits INSIDE the dashboard card */}
-      
       <p className="text-sm text-slate-500 mb-4">
         Set limits for specific categories to track your spending habits.
       </p>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* RESPONSIVE GRID: 
+            - grid-cols-1 on mobile (stacked)
+            - sm:grid-cols-2 on small tablets and up (side-by-side)
+        */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+          
           {/* CATEGORY SELECT */}
           <div className="relative group">
             <select 
                 name="category" 
-                className="w-full appearance-none bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 block p-3 pr-10 transition-all outline-none"
+                className="
+                  w-full appearance-none 
+                  bg-slate-50 border border-slate-200 
+                  text-slate-700 rounded-xl 
+                  focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 
+                  block p-3 pr-10 transition-all outline-none
+                  text-base sm:text-sm /* Prevents iOS Zoom on mobile */
+                "
             >
               {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
-            {/* Custom Arrow Icon positioned absolutely */}
+            {/* Custom Arrow Icon */}
             <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-500">
               <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
             </div>
@@ -63,7 +85,14 @@ export default function BudgetManager() {
               type="number" 
               placeholder="0.00" 
               required 
-              className="w-full bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 block p-3 pl-8 transition-all outline-none placeholder:text-slate-300"
+              className="
+                w-full bg-slate-50 border border-slate-200 
+                text-slate-700 rounded-xl 
+                focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 
+                block p-3 pl-8 transition-all outline-none 
+                placeholder:text-slate-300
+                text-base sm:text-sm /* Prevents iOS Zoom on mobile */
+              "
             />
           </div>
         </div>
@@ -74,11 +103,13 @@ export default function BudgetManager() {
           className="
             w-full flex justify-center items-center gap-2
             bg-indigo-600 hover:bg-indigo-700 
-            text-white font-medium text-sm 
+            text-white font-medium 
+            text-sm sm:text-sm
             py-3 px-5 rounded-xl 
             transition-all duration-200 
             shadow-md shadow-indigo-200
             disabled:opacity-70 disabled:cursor-not-allowed
+            active:scale-[0.98] /* Adds a nice click effect on mobile */
           "
         >
           {loading ? (
@@ -92,7 +123,6 @@ export default function BudgetManager() {
           ) : (
             <>
                <span>Set Limit</span>
-               {/* Arrow Icon */}
                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
             </>
           )}

@@ -9,7 +9,6 @@ import TransactionItem from "@/components/ui/TransactionItem";
 import BudgetManager from "@/components/forms/BudgetManager";
 
 // --- DECORATIVE ICONS COMPONENT ---
-// These are simple SVGs rendered with low opacity to create the background texture
 const BackgroundDecorations = () => (
   <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
     {/* Top Right - Wallet */}
@@ -93,47 +92,52 @@ export default async function Dashboard() {
 
   return (
     // UPDATED: Main Gradient Container
-    <div className="relative min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50 selection:bg-indigo-100">
+    // Added overflow-x-hidden to prevent horizontal scroll from background svgs on mobile
+    <div className="relative min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50 selection:bg-indigo-100 overflow-x-hidden">
       
       {/* Background Layer */}
       <BackgroundDecorations />
 
-      {/* Main Content Layer (z-10 ensures it sits above background) */}
-      <div className="relative z-10 p-6 md:p-10">
-        <div className="max-w-5xl mx-auto space-y-8">
+      {/* Main Content Layer */}
+      {/* Adjusted padding: smaller on mobile (px-4), larger on desktop (md:p-10) */}
+      <div className="relative z-10 px-4 py-6 sm:p-8 md:p-10">
+        <div className="max-w-5xl mx-auto space-y-6 md:space-y-8">
           
           {/* --- HEADER: Glassmorphism Effect --- */}
-          <div className="bg-white/80 backdrop-blur-md p-8 rounded-3xl shadow-lg shadow-indigo-100/50 border border-white/50">
+          {/* Adjusted padding for mobile */}
+          <div className="bg-white/80 backdrop-blur-md p-5 sm:p-8 rounded-3xl shadow-lg shadow-indigo-100/50 border border-white/50">
              <div className="flex flex-col md:flex-row md:items-end justify-between mb-6 gap-4">
                  <div>
-                     <h1 className="text-xl font-bold text-slate-700 tracking-tight">
+                     <h1 className="text-lg sm:text-xl font-bold text-slate-700 tracking-tight">
                          {now.toLocaleString('default', { month: 'long' })} Overview
                      </h1>
-                     <div className="flex items-baseline gap-2 mt-2">
-                         <span className="text-5xl font-extrabold text-slate-900 tracking-tight">
+                     <div className="flex flex-wrap items-baseline gap-2 mt-2">
+                         {/* Responsive font size: smaller on mobile to prevent overflow */}
+                         <span className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-slate-900 tracking-tight">
                              #{totalSpent.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                          </span>
-                         <span className="text-lg text-slate-400 font-medium">
+                         <span className="text-sm sm:text-lg text-slate-400 font-medium whitespace-nowrap">
                              / #{totalBudget.toLocaleString()}
                          </span>
                      </div>
                  </div>
 
-                 <div className="text-left md:text-right bg-white/50 p-3 rounded-xl border border-slate-100">
+                 {/* Status Box: Full width on mobile, right aligned on desktop */}
+                 <div className="w-full md:w-auto text-left md:text-right bg-white/50 p-3 rounded-xl border border-slate-100">
                      <p className={`text-sm font-bold uppercase tracking-wider ${isOverTotal ? 'text-red-500' : 'text-emerald-600'}`}>
                          {isOverTotal ? '⚠️ Over Budget' : '✅ On Track'}
                      </p>
                      <p className="text-sm text-slate-500 mt-1">
                          {isOverTotal 
-                            ? `Exceeded by #${Math.abs(remaining).toLocaleString()}` 
-                            : `#${remaining.toLocaleString()} remaining`
+                           ? `Exceeded by #${Math.abs(remaining).toLocaleString()}` 
+                           : `#${remaining.toLocaleString()} remaining`
                          }
                      </p>
                  </div>
              </div>
 
              {/* Global Progress Bar */}
-             <div className="relative w-full bg-slate-100 rounded-full h-5 overflow-hidden shadow-inner">
+             <div className="relative w-full bg-slate-100 rounded-full h-4 sm:h-5 overflow-hidden shadow-inner">
                  <div 
                      className={`h-full transition-all duration-1000 ease-out shadow-sm ${
                          isOverTotal ? 'bg-red-500' : 'bg-gradient-to-r from-blue-600 to-indigo-500'
@@ -144,12 +148,14 @@ export default async function Dashboard() {
           </div>
 
           {/* --- MAIN CONTENT GRID --- */}
-          <div className="grid lg:grid-cols-2 gap-8">
+          {/* Grid stack on mobile (default), 2 cols on lg screens */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
             
             {/* LEFT COLUMN */}
-            <div className="space-y-8">
-              {/* Card Style: White with slight transparency and softer border */}
-              <section className="bg-white/90 backdrop-blur-sm p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow duration-300">
+            <div className="space-y-6 md:space-y-8 order-2 lg:order-1">
+              {/* Cards: Adjusted padding (p-4 mobile, p-6 desktop) */}
+              
+              <section className="bg-white/90 backdrop-blur-sm p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow duration-300">
                 <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
                     <span>⚙️</span> Budget Settings
                 </h2>
@@ -159,32 +165,40 @@ export default async function Dashboard() {
                 />
               </section>
               
-              <section className="bg-white/90 backdrop-blur-sm p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow duration-300">
+              <section className="bg-white/90 backdrop-blur-sm p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow duration-300">
                   <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
                     <span>➕</span> Add Transaction
                   </h2>
                   <UploadReceipt budgetCategories={budgetCategories} />
               </section>
 
-              <section className="bg-white/90 backdrop-blur-sm p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow duration-300">
+              <section className="bg-white/90 backdrop-blur-sm p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow duration-300">
                 <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
                     <span>📊</span> Spending Breakdown
                 </h2>
-                {totalSpent > 0 ? (
-                   <SpendingChart data={chartData} />
-                ) : (
-                   <div className="h-48 flex items-center justify-center text-slate-400 text-sm bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
-                     No spending data yet
-                   </div>
-                )}
+                {/* Ensure chart container handles overflow or scaling */}
+                <div className="w-full overflow-hidden">
+                    {totalSpent > 0 ? (
+                       <SpendingChart data={chartData} />
+                    ) : (
+                       <div className="h-48 flex items-center justify-center text-slate-400 text-sm bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
+                         No spending data yet
+                       </div>
+                    )}
+                </div>
               </section>
             </div>
 
             {/* RIGHT COLUMN */}
-            <div className="space-y-8">
+            {/* On mobile, we might want Recent Transactions closer to top, 
+                but usually summaries (Categories) come first. 
+                Order-1 ensures this column stays on top on mobile if desired, 
+                or remove 'order-' classes to follow HTML structure. 
+                Here: Left column is actions (order-2 on mobile), Right is display (order-1 on mobile) */}
+            <div className="space-y-6 md:space-y-8 order-1 lg:order-2">
               
               {/* CATEGORY PROGRESS BARS */}
-              <section className="bg-white/90 backdrop-blur-sm p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow duration-300">
+              <section className="bg-white/90 backdrop-blur-sm p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow duration-300">
                 <h2 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
                     <span>🎯</span> Category Limits
                 </h2>
@@ -200,7 +214,8 @@ export default async function Dashboard() {
                       
                       return (
                         <div key={budget.id} className="group">
-                          <div className="flex justify-between text-sm mb-2">
+                          {/* Flex wrap allows text to stack on very small screens */}
+                          <div className="flex flex-wrap justify-between text-sm mb-2 gap-1">
                             <span className="font-semibold text-slate-700">{budget.category}</span>
                             <span className={isOver ? "text-red-600 font-bold" : "text-slate-500"}>
                               #{spent.toLocaleString()} <span className="text-xs text-slate-300">/</span> {budget.limit.toLocaleString()}
@@ -220,13 +235,14 @@ export default async function Dashboard() {
               </section>
 
               {/* TRANSACTIONS LIST */}
-              <section className="bg-white/90 backdrop-blur-sm p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow duration-300">
+              <section className="bg-white/90 backdrop-blur-sm p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow duration-300">
                 <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
                     <span>💳</span> Recent Transactions
                 </h2>
                 <div className="space-y-2">
                   {user.transactions.map(t => (
-                    <div key={t.id} className="hover:bg-slate-50 rounded-lg transition-colors -mx-2 px-2">
+                    // Using -mx-2 logic but ensuring container has padding so it doesn't bleed
+                    <div key={t.id} className="hover:bg-slate-50 rounded-lg transition-colors -mx-2 px-2 py-1">
                         <TransactionItem 
                             id={t.id}
                             description={t.description || "Unknown"}
