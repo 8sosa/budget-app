@@ -1,4 +1,6 @@
 // src/app/dashboard/page.tsx
+export const dynamic = 'force-dynamic';
+
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
@@ -7,6 +9,8 @@ import UploadReceipt from "@/components/forms/uploadReceipt";
 import SpendingChart from "@/components/charts/SpendingChart";
 import TransactionItem from "@/components/ui/TransactionItem";
 import BudgetManager from "@/components/forms/BudgetManager";
+import DateFilter from "@/components/ui/DateFilter";
+import { getBudgetForPeriod, getYearlyTotalLimit } from "@/lib/budgetUtils";
 
 // --- DECORATIVE ICONS COMPONENT ---
 const BackgroundDecorations = () => (
@@ -36,17 +40,39 @@ const BackgroundDecorations = () => (
   </div>
 );
 
-export default async function Dashboard() {
+export default async function Dashboard({
+  searchParams,
+}: {
+  // 1. Update Type: It is now a Promise
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
   const session = await getServerSession(authOptions);
-  
+
   if (!session) {
     redirect("/login");
   }
 
-  // 1. DATE LOGIC
-  const now = new Date();
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  // 2. Await the params
+  const params = await searchParams;
+
+  // 3. Use 'params' (not searchParams) for the logic
+  const today = new Date();
+  
+  const year = typeof params.year === 'string' ? parseInt(params.year) : today.getFullYear();
+  const month = typeof params.month === 'string' ? parseInt(params.month) : today.getMonth();
+  const viewMode = typeof params.view === 'string' ? params.view : 'monthly';
+
+  let startDate: Date, endDate: Date;
+
+  if (viewMode === 'yearly') {
+    // Yearly: Jan 1 to Jan 1 of next year
+    startDate = new Date(year, 0, 1);
+    endDate = new Date(year + 1, 0, 1);
+  } else {
+    // Monthly: First day of Month to First day of NEXT Month
+    startDate = new Date(year, month, 1);
+    endDate = new Date(year, month + 1, 1);
+  }
 
   // 2. Fetch Data
   const user = await prisma.user.findUnique({
@@ -55,8 +81,8 @@ export default async function Dashboard() {
       transactions: {
         where: {
           date: {
-            gte: startOfMonth,
-            lte: endOfMonth
+            gte: startDate,
+            lte: endDate
           }
         },
         orderBy: { date: 'desc' },
@@ -67,28 +93,34 @@ export default async function Dashboard() {
 
   if (!user) return <div>User not found</div>;
 
-  const budgetCategories = user.budgets.map(b => b.category);
-
-  // 3. Calculate Spending
-  const spendingByCategory: Record<string, number> = {};
+ // 4. CALCULATE TOTALS
   let totalSpent = 0;
+  const spendingByCategory: Record<string, number> = {};
 
-  user.transactions.forEach(t => {
+  user.transactions.forEach((t) => {
     const cat = t.category || "Other";
     spendingByCategory[cat] = (spendingByCategory[cat] || 0) + t.amount;
     totalSpent += t.amount;
   });
 
-  const chartData = Object.entries(spendingByCategory).map(([name, value]) => ({
-    name,
-    value,
-  }));
+  // 5. DETERMINE WHICH BUDGET TO COMPARE AGAINST
+  let activeBudgetLimit = 0;
+  const { globalLimit, categories } = await getBudgetForPeriod(session.user?.email!, month, year);
 
-  // 4. GLOBAL BUDGET MATH
-  const totalBudget = user.monthlyBudget || 0;
-  const totalPercentage = totalBudget > 0 ? Math.min(100, (totalSpent / totalBudget) * 100) : 0;
-  const isOverTotal = totalSpent > totalBudget;
-  const remaining = totalBudget - totalSpent;
+  if (viewMode === 'yearly') {
+    // ✅ NEW: Calculate the smart sum of all months
+    activeBudgetLimit = await getYearlyTotalLimit(session.user?.email!, year);
+  } else {
+    // Monthly View: Use the limit for this specific month
+    activeBudgetLimit = globalLimit;
+  }
+  
+  // Math logic
+  const totalPercentage = activeBudgetLimit > 0 ? Math.min(100, (totalSpent / activeBudgetLimit) * 100) : 0;
+  const isOverTotal = totalSpent > activeBudgetLimit;
+  const remaining = activeBudgetLimit - totalSpent;
+  const chartData = Object.entries(spendingByCategory).map(([name, value]) => ({ name, value }));
+  const budgetCategories = user.budgets.map((b) => b.category);
 
   return (
     // UPDATED: Main Gradient Container
@@ -102,22 +134,23 @@ export default async function Dashboard() {
       {/* Adjusted padding: smaller on mobile (px-4), larger on desktop (md:p-10) */}
       <div className="relative z-10 px-4 py-6 sm:p-8 md:p-10">
         <div className="max-w-5xl mx-auto space-y-6 md:space-y-8">
-          
+          <DateFilter />
           {/* --- HEADER: Glassmorphism Effect --- */}
           {/* Adjusted padding for mobile */}
           <div className="bg-white/80 backdrop-blur-md p-5 sm:p-8 rounded-3xl shadow-lg shadow-indigo-100/50 border border-white/50">
              <div className="flex flex-col md:flex-row md:items-end justify-between mb-6 gap-4">
                  <div>
-                     <h1 className="text-lg sm:text-xl font-bold text-slate-700 tracking-tight">
-                         {now.toLocaleString('default', { month: 'long' })} Overview
-                     </h1>
+                    <h1 className="text-xl font-bold text-slate-700">
+                     {/* Dynamic Title */}
+                     {viewMode === 'yearly' ? `${year} Annual Overview` : `${new Date(year, month).toLocaleString('default', { month: 'long' })} ${year}`}
+                   </h1>
                      <div className="flex flex-wrap items-baseline gap-2 mt-2">
                          {/* Responsive font size: smaller on mobile to prevent overflow */}
                          <span className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-slate-900 tracking-tight">
                              #{totalSpent.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                          </span>
                          <span className="text-sm sm:text-lg text-slate-400 font-medium whitespace-nowrap">
-                             / #{totalBudget.toLocaleString()}
+                             / #{activeBudgetLimit.toLocaleString()}
                          </span>
                      </div>
                  </div>
@@ -160,8 +193,12 @@ export default async function Dashboard() {
                     <span>⚙️</span> Budget Settings
                 </h2>
                 <BudgetManager 
-                  globalBudget={user.monthlyBudget} 
-                  budgets={user.budgets} 
+                  monthlyBudget={globalLimit}
+                  yearlyBudget={user.yearlyBudget} 
+                  budgets={categories}
+                  currentMonth={month} 
+                  currentYear={year}
+                  initialView={viewMode as 'monthly' | 'yearly'}
                 />
               </section>
               

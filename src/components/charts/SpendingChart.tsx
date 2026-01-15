@@ -46,7 +46,7 @@ export default function SpendingChart({ data }: Props) {
     // Mobile: h-[300px] (Tall enough for chart + legend stacking)
     // Desktop: h-64 (Standard height)
     <div className="h-[300px] sm:h-64 w-full">
-      <ResponsiveContainer width="100%" height="100%">
+      <ResponsiveContainer width="100%" height="100%" minWidth={100} debounce={1}>
         <PieChart>
           <Pie
             data={data}

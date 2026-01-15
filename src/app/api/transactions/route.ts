@@ -20,6 +20,7 @@ export async function POST(req: Request) {
     if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
     // Create the transaction in the database
+    console.log("Creating transaction for user ID:", user.id)
     const transaction = await prisma.transaction.create({
       data: {
         userId: user.id,
@@ -30,6 +31,8 @@ export async function POST(req: Request) {
         // type: "EXPENSE", // Assuming receipts are always expenses
       },
     });
+
+    console.log("Transaction created:", transaction);
 
     return NextResponse.json(transaction);
   } catch (error) {

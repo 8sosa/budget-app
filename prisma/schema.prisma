@@ -9,7 +9,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// --- NextAuth Models (Required) ---
+// --- NextAuth Models ---
 
 model User {
   id            String    @id @default(auto()) @map("_id") @db.ObjectId
@@ -20,11 +20,14 @@ model User {
   password      String?
   accounts      Account[]
   sessions      Session[]
-  monthlyBudget Float     @default(0)
   
-  // Relation to your custom data
+  // RENAME: This is now your "Default" template for new months
+  defaultMonthlyBudget Float     @default(0) 
+  yearlyBudget         Float     @default(0)
+   
   transactions  Transaction[]
   budgets       Budget[]
+  monthlyCaps   MonthlyCap[]   // Relation to history
 }
 
 model Account {
@@ -54,31 +57,49 @@ model Session {
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-// --- Your Custom Budget App Models ---
+// --- Custom Budget App Models ---
 
 model Transaction {
   id          String   @id @default(auto()) @map("_id") @db.ObjectId
   userId      String   @db.ObjectId
   amount      Float
   currency    String   @default("USD")
-  category    String   // e.g. "Food", "Transport"
-  description String?  // e.g. "McDonalds Lunch"
+  category    String   
+  description String?  
   date        DateTime @default(now())
-  
-  // Receipt Data
   receiptUrl  String?
-  receiptId   String?  // Cloudinary Public ID
+  receiptId   String?  
 
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-model Budget {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  userId      String   @db.ObjectId
-  category    String
-  limit       Float    // The spending cap
-  period      String   @default("monthly") // monthly, weekly
+// ✅ NEW MODEL: Stores the Global Limit for a specific month
+model MonthlyCap {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  month     Int      // 0 = Jan, 11 = Dec
+  year      Int      // e.g. 2024
+  amount    Float    // The limit for THIS specific month
 
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  @@unique([userId, category])
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, month, year]) // Prevent duplicate caps for same month
+}
+
+// ✅ UPDATED MODEL: Categories are now time-specific
+model Budget {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  category  String
+  limit     Float    
+  period    String   @default("monthly")
+
+  // Time Stamping
+  month     Int      
+  year      Int      
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Critical: Allows "Food" in Jan AND "Food" in Feb
+  @@unique([userId, category, month, year]) 
 }

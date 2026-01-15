@@ -1,5 +1,5 @@
 "use client";
-
+import { useRouter } from "next/navigation";
 import { useState, useRef } from "react";
 import { uploadToCloudinary } from "@/app/actions/upload";
 
@@ -8,6 +8,7 @@ type Props = {
 };
 
 export default function UploadReceipt({ budgetCategories }: Props) {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<"scan" | "manual">("scan");
   
   // Drag & Drop State
@@ -96,15 +97,20 @@ export default function UploadReceipt({ budgetCategories }: Props) {
 
   async function handleSave(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    console.log("Saving transaction...");
     setSaving(true);
+    console.log("Saving transaction step 1...");
 
     const formData = new FormData(e.currentTarget);
+    console.log("Form Data:", Array.from(formData.entries()));
     const transactionData = {
       merchant: formData.get("merchant"),
       date: formData.get("date"),
       amount: parseFloat(formData.get("total") as string), 
       category: formData.get("category"),
     };
+
+    console.log("Saving transaction:", transactionData);
 
     try {
       const res = await fetch("/api/transactions", {
@@ -113,12 +119,21 @@ export default function UploadReceipt({ budgetCategories }: Props) {
         body: JSON.stringify(transactionData),
       });
 
-      if (res.ok) {
+     if (res.ok) {
+        setFile(null);          // Clear the image
+        setPreview(null);       // Clear the preview
+        setScanResult(null);    // Clear the form
+        setActiveTab("scan");   // Reset tab
+        
+        router.refresh();       // Refreshes the Dashboard data without reloading the page
+        
+        alert("Transaction saved!"); if (res.ok) {
         window.location.reload(); 
       } else {
         const err = await res.json();
         alert("Failed: " + err.error);
       }
+    }
     } catch (error) {
       console.error(error);
     } finally {

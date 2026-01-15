@@ -2,6 +2,7 @@
 
 import { deleteTransaction } from "@/app/actions/transaction";
 import { useState } from "react";
+import { format } from "date-fns";
 
 type Props = {
   id: string;
@@ -69,7 +70,7 @@ export default function TransactionItem({ id, description, amount, date, categor
             {description || "Unknown Transaction"}
           </p>
           <div className="flex items-center text-xs text-slate-400 mt-0.5 sm:mt-1 gap-1 sm:gap-2">
-             <span className="shrink-0">{new Date(date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
+             <span className="shrink-0">{format(new Date(date), "d MMM")}</span>
              <span className="w-1 h-1 rounded-full bg-slate-300 shrink-0"></span>
              <span className="capitalize truncate">{category}</span>
           </div>
