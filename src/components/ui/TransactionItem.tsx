@@ -10,31 +10,53 @@ type Props = {
   amount: number;
   date: Date;
   category: string;
+  currency: string;
 };
 
+// Helper to get colors based on category
+// Now supports distinct Light (pastel) and Dark (glow) modes
 const getCategoryStyle = (cat: string) => {
   const normalized = cat.toLowerCase();
   
   if (normalized.includes("food") || normalized.includes("grocer") || normalized.includes("restaurant")) {
-    return { bg: "bg-orange-100", text: "text-orange-600", icon: "🍔" };
+    return { 
+      wrapper: "bg-orange-100 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400 ring-orange-500/20", 
+      icon: "🍔" 
+    };
   }
   if (normalized.includes("transport") || normalized.includes("gas") || normalized.includes("uber")) {
-    return { bg: "bg-blue-100", text: "text-blue-600", icon: "🚗" };
+    return { 
+      wrapper: "bg-blue-100 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400 ring-blue-500/20", 
+      icon: "🚗" 
+    };
   }
   if (normalized.includes("bill") || normalized.includes("utilit")) {
-    return { bg: "bg-red-100", text: "text-red-600", icon: "💡" };
+    return { 
+      wrapper: "bg-red-100 text-red-600 dark:bg-red-500/10 dark:text-red-400 ring-red-500/20", 
+      icon: "💡" 
+    };
   }
   if (normalized.includes("shopping") || normalized.includes("cloth")) {
-    return { bg: "bg-pink-100", text: "text-pink-600", icon: "🛍️" };
+    return { 
+      wrapper: "bg-pink-100 text-pink-600 dark:bg-pink-500/10 dark:text-pink-400 ring-pink-500/20", 
+      icon: "🛍️" 
+    };
   }
   if (normalized.includes("enter") || normalized.includes("fun")) {
-    return { bg: "bg-purple-100", text: "text-purple-600", icon: "🎬" };
+    return { 
+      wrapper: "bg-purple-100 text-purple-600 dark:bg-purple-500/10 dark:text-purple-400 ring-purple-500/20", 
+      icon: "🎬" 
+    };
   }
   
-  return { bg: "bg-slate-100", text: "text-slate-600", icon: "💳" };
+  // Default (Lilac/Indigo Theme)
+  return { 
+    wrapper: "bg-slate-100 text-slate-600 dark:bg-indigo-500/10 dark:text-indigo-400 ring-slate-500/20", 
+    icon: "💳" 
+  };
 };
 
-export default function TransactionItem({ id, description, amount, date, category }: Props) {
+export default function TransactionItem({ id, description, amount, date, category, currency }: Props) {
   const [isDeleting, setIsDeleting] = useState(false);
   const style = getCategoryStyle(category || "other");
 
@@ -48,9 +70,11 @@ export default function TransactionItem({ id, description, amount, date, categor
     <div 
       className={`
         group relative flex items-center justify-between 
-        p-3 sm:p-4 
-        rounded-xl border border-transparent 
-        hover:bg-white hover:shadow-sm hover:border-slate-100 
+        p-3 sm:p-4 mb-2
+        bg-white dark:bg-slate-900
+        rounded-2xl border border-slate-100 dark:border-slate-800
+        hover:border-indigo-200 dark:hover:border-indigo-800
+        hover:shadow-sm dark:hover:bg-slate-800/50
         transition-all duration-200 ease-in-out
         ${isDeleting ? 'opacity-50 pointer-events-none' : ''}
       `}
@@ -58,38 +82,42 @@ export default function TransactionItem({ id, description, amount, date, categor
       <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
         {/* 1. CATEGORY AVATAR */}
         <div className={`
-          shrink-0 w-10 h-10 rounded-full flex items-center justify-center 
-          text-lg ${style.bg} ${style.text} shadow-sm
+          shrink-0 w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center 
+          text-lg sm:text-xl ring-1 ring-inset transition-colors
+          ${style.wrapper}
         `}>
-            {style.icon}
+           {style.icon}
         </div>
         
         {/* 2. TEXT INFO */}
         <div className="flex-1 min-w-0">
-          <p className="font-semibold text-slate-700 leading-tight truncate text-sm sm:text-base">
+          <p className="font-semibold text-slate-800 dark:text-slate-100 leading-tight truncate text-sm sm:text-base">
             {description || "Unknown Transaction"}
           </p>
-          <div className="flex items-center text-xs text-slate-400 mt-0.5 sm:mt-1 gap-1 sm:gap-2">
+          <div className="flex items-center text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5 sm:mt-1 gap-1.5">
              <span className="shrink-0">{format(new Date(date), "d MMM")}</span>
-             <span className="w-1 h-1 rounded-full bg-slate-300 shrink-0"></span>
+             <span className="w-1 h-1 rounded-full bg-slate-300 dark:bg-slate-600 shrink-0"></span>
              <span className="capitalize truncate">{category}</span>
           </div>
         </div>
       </div>
 
       {/* 3. RIGHT SIDE: Amount & Delete */}
-      <div className="flex items-center gap-2 sm:gap-4 ml-2 sm:ml-4">
-        <span className="font-bold text-slate-900 text-sm sm:text-base whitespace-nowrap">
-          - #{amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+      <div className="flex items-center gap-3 sm:gap-5 ml-2 sm:ml-4">
+        <span className="font-bold text-slate-900 dark:text-white text-sm sm:text-base whitespace-nowrap">
+          - {currency}{amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
         </span>
 
         {/* Delete Button */}
+        {/* Mobile: Always visible (slate color) */}
+        {/* Desktop: Hidden until hover, then turns red */}
         <button 
           onClick={handleDelete}
           disabled={isDeleting}
           className="
-            p-2 rounded-lg text-slate-400 
-            hover:text-red-600 hover:bg-red-50 
+            p-2 rounded-lg 
+            text-slate-400 hover:text-red-600 dark:text-slate-500 dark:hover:text-red-400
+            hover:bg-red-50 dark:hover:bg-red-900/20
             opacity-100 sm:opacity-0 sm:group-hover:opacity-100 
             transition-all duration-200 
             sm:translate-x-2 sm:group-hover:translate-x-0

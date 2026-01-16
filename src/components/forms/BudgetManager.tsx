@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { copyPreviousMonthBudgets } from "@/app/actions/budget";
 import { updateGlobalBudget, saveCategoryBudget, deleteBudget } from "@/app/actions/budget";
 
 type Budget = {
@@ -17,6 +18,8 @@ type Props = {
   currentMonth: number;
   currentYear: number;
   initialView?: 'monthly' | 'yearly';
+  currencySymbol: string;
+  canImportPrevious?: boolean;
 };
 
 export default function BudgetManager({ 
@@ -25,11 +28,26 @@ export default function BudgetManager({
   budgets, 
   currentMonth, 
   currentYear,
-  initialView = 'monthly'
+  initialView = 'monthly',
+  currencySymbol,
+  canImportPrevious
 }: Props) {
   
+  const [isImporting, setIsImporting] = useState(false);
   const router = useRouter();
 
+  const handleImport = async () => {
+    setIsImporting(true);
+    try {
+      await copyPreviousMonthBudgets(currentMonth, currentYear);
+      // The server action revalidates, but sometimes a router refresh helps UI snap instantly
+      router.refresh(); 
+    } catch (error) {
+      console.error("Failed to import budgets", error);
+    } finally {
+      setIsImporting(false);
+    }
+  };
   // --- STATE ---
   const [activeTab, setActiveTab] = useState<'monthly' | 'yearly'>(initialView);
   const [isEditingGlobal, setIsEditingGlobal] = useState(false);
@@ -72,7 +90,6 @@ export default function BudgetManager({
     const amount = Number(activeTab === 'monthly' ? tempMonthly : tempYearly);
     
     if (activeTab === 'monthly') {
-        // Update Monthly AND Yearly
         const updateMonthly = updateGlobalBudget(amount, 'monthly', currentMonth, currentYear);
         const newYearly = amount * 12;
         setTempYearly(newYearly); 
@@ -80,7 +97,6 @@ export default function BudgetManager({
 
         await Promise.all([updateMonthly, updateYearly]);
     } else {
-        // Update Yearly only
         await updateGlobalBudget(amount, 'yearly', currentMonth, currentYear);
     }
     
@@ -102,7 +118,6 @@ export default function BudgetManager({
     setIsSaving(false);
   };
 
-  // 👇 THIS FUNCTION WAS MISSING
   const startEditing = (budget: Budget) => {
     setEditingId(budget.id);
     setEditAmount(budget.limit.toString());
@@ -130,17 +145,17 @@ export default function BudgetManager({
   return (
     <div className="space-y-6 w-full">
       
-      {/* SECTION 1: GLOBAL CAP */}
-      <section className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-200 transition-all duration-500">
+      {/* SECTION 1: GLOBAL CAP - Using Theme Gradient */}
+      <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary via-primary/80 to-accent/50 text-primary-foreground shadow-lg transition-all duration-500">
         
         {/* Background Decorations */}
         <div className="absolute top-0 right-0 -mt-4 -mr-4 h-24 w-24 rounded-full bg-white/20 blur-xl"></div>
-        <div className="absolute bottom-0 left-0 -mb-4 -ml-4 h-20 w-20 rounded-full bg-blue-500/20 blur-xl"></div>
+        <div className="absolute bottom-0 left-0 -mb-4 -ml-4 h-20 w-20 rounded-full bg-accent/20 blur-xl"></div>
         
         <div className="relative p-5 sm:p-6">
           {/* HEADER: Title + Toggle */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-            <h3 className="text-xs font-bold tracking-widest uppercase text-indigo-100/80">
+            <h3 className="text-xs font-bold tracking-widest uppercase opacity-80">
               {activeTab === 'monthly' ? 'Monthly Spending Limit' : 'Annual Spending Goal'}
             </h3>
             
@@ -148,13 +163,13 @@ export default function BudgetManager({
             <div className="flex bg-black/20 rounded-lg p-1 self-start sm:self-auto backdrop-blur-sm">
               <button
                 onClick={() => { setActiveTab('monthly'); setIsEditingGlobal(false); }}
-                className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${activeTab === 'monthly' ? 'bg-white text-indigo-600 shadow' : 'text-indigo-200 hover:text-white'}`}
+                className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${activeTab === 'monthly' ? 'bg-background text-foreground shadow' : 'text-primary-foreground/70 hover:text-white'}`}
               >
                 Monthly
               </button>
               <button
                 onClick={() => { setActiveTab('yearly'); setIsEditingGlobal(false); }}
-                className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${activeTab === 'yearly' ? 'bg-white text-indigo-600 shadow' : 'text-indigo-200 hover:text-white'}`}
+                className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${activeTab === 'yearly' ? 'bg-background text-foreground shadow' : 'text-primary-foreground/70 hover:text-white'}`}
               >
                 Yearly
               </button>
@@ -166,18 +181,18 @@ export default function BudgetManager({
             <div className="w-full">
                 {isEditingGlobal ? (
                     <div className="flex items-center gap-3 animate-in fade-in duration-200">
-                    <span className="text-2xl font-bold opacity-50">#</span>
+                    <span className="text-2xl font-bold opacity-50">{currencySymbol}</span>
                     <input 
                         type="number" 
                         value={activeTab === 'monthly' ? tempMonthly : tempYearly} 
                         onChange={(e) => activeTab === 'monthly' ? setTempMonthly(parseFloat(e.target.value)) : setTempYearly(parseFloat(e.target.value))} 
-                        className="w-full max-w-[200px] bg-transparent border-b-2 border-white/30 focus:border-white text-3xl font-bold focus:outline-none text-white placeholder-white/50" 
+                        className="w-full max-w-[200px] bg-transparent border-b-2 border-white/30 focus:border-white text-3xl font-bold focus:outline-none placeholder-white/50" 
                         autoFocus 
                     />
                     <button 
                         onClick={handleUpdateGlobal} 
                         disabled={isSaving} 
-                        className="ml-2 bg-white text-indigo-600 hover:bg-indigo-50 px-4 py-2 rounded-lg text-sm font-bold shadow-sm"
+                        className="ml-2 bg-background text-foreground hover:bg-muted px-4 py-2 rounded-lg text-sm font-bold shadow-sm"
                     >
                         Save
                     </button>
@@ -185,9 +200,9 @@ export default function BudgetManager({
                 ) : (
                     <div className="flex items-center gap-4 group cursor-pointer" onClick={() => setIsEditingGlobal(true)}>
                         <div className="text-3xl sm:text-4xl font-extrabold tracking-tight truncate">
-                            #{currentGlobal.toLocaleString()}
+                            {currencySymbol}{currentGlobal.toLocaleString()}
                         </div>
-                        <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-white/20 hover:bg-white/30 p-1.5 rounded-full">
+                        <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-white/20 hover:bg-white/30 p-1.5 rounded-full text-white">
                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                         </div>
                     </div>
@@ -197,28 +212,28 @@ export default function BudgetManager({
 
           {/* Progress Bar Area */}
           <div className="mt-6 space-y-2">
-            <div className="flex flex-col sm:flex-row justify-between text-xs font-medium text-indigo-100/70 gap-1">
+            <div className="flex flex-col sm:flex-row justify-between text-xs font-medium opacity-80 gap-1">
               <span>
                  {activeTab === 'monthly' ? 'Allocated via Categories:' : 'Projected Annual Spend:'} 
-                 <span className="text-white ml-1">#{allocatedComparison.toLocaleString()}</span>
+                 <span className="font-bold ml-1">{currencySymbol}{allocatedComparison.toLocaleString()}</span>
               </span>
-              <span className={isOverBudget ? "text-red-200 font-bold" : "text-emerald-200"}>
+              <span className={isOverBudget ? "text-red-200 font-bold" : "text-emerald-100 font-bold"}>
                 {isOverBudget 
-                    ? `⚠️ Over by #${Math.abs(unallocated).toLocaleString()}` 
-                    : `Remaining: #${unallocated.toLocaleString()}`
+                    ? `⚠️ Over by ${currencySymbol}${Math.abs(unallocated).toLocaleString()}` 
+                    : `Remaining: ${currencySymbol}${unallocated.toLocaleString()}`
                 }
               </span>
             </div>
             
             <div className="h-2 w-full rounded-full bg-black/20 overflow-hidden">
               <div 
-                className={`h-full transition-all duration-700 ease-out shadow-lg ${isOverBudget ? 'bg-red-400' : 'bg-emerald-400'}`} 
+                className={`h-full transition-all duration-700 ease-out shadow-lg ${isOverBudget ? 'bg-red-400' : 'bg-secondary'}`} 
                 style={{ width: `${percentUsed}%` }}
               ></div>
             </div>
             
             {activeTab === 'yearly' && (
-                <p className="text-[10px] text-indigo-200/60 mt-2 italic">
+                <p className="text-[10px] opacity-60 mt-2 italic">
                     * Comparing Annual Goal vs (Current Monthly × 12)
                 </p>
             )}
@@ -226,14 +241,36 @@ export default function BudgetManager({
         </div>
       </section>
 
+      {/* 👇 NEW: Import Prompt */}
+      {canImportPrevious && budgets.length === 0 && (
+        <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 animate-in fade-in slide-in-from-top-2">
+          <div className="flex items-center gap-3">
+            <div className="bg-indigo-100 p-2 rounded-full text-indigo-600">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path></svg>
+            </div>
+            <div>
+              <p className="text-sm font-bold text-indigo-900">Start from last month?</p>
+              <p className="text-xs text-indigo-700">Copy your categories and limits from the previous month.</p>
+            </div>
+          </div>
+          <button
+            onClick={handleImport}
+            disabled={isImporting}
+            className="whitespace-nowrap px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors shadow-sm disabled:opacity-50"
+          >
+            {isImporting ? "Importing..." : "Import Budgets"}
+          </button>
+        </div>
+      )}
+
       {/* SECTION 2: ADD CATEGORY */}
-      <section className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+      <section className="bg-muted/30 p-4 rounded-xl border border-border">
         <div className="flex justify-between items-center mb-3">
-             <h4 className="text-sm font-bold text-slate-700 uppercase tracking-wider">
+             <h4 className="text-sm font-bold text-muted-foreground uppercase tracking-wider">
                Monthly Category Splits
              </h4>
              {activeTab === 'yearly' && (
-                 <span className="text-[10px] bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full font-bold">
+                 <span className="text-[10px] bg-primary/20 text-primary px-2 py-0.5 rounded-full font-bold">
                      Repeating Monthly
                  </span>
              )}
@@ -246,20 +283,20 @@ export default function BudgetManager({
                placeholder="Category Name" 
                value={catName} 
                onChange={(e) => setCatName(e.target.value)} 
-               className="w-full rounded-lg border-slate-200 bg-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm py-2.5 px-3 outline-none" 
+               className="placeholder:text-slate-500 w-full rounded-lg border-border bg-background text-foreground shadow-sm focus:border-primary focus:ring-primary text-sm py-2.5 px-3 outline-none transition-all" 
                required 
             />
           </div>
           <div className="w-full sm:w-32 relative">
              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <span className="text-slate-400 text-xs font-bold">#</span>
+                <span className="text-muted-foreground text-xs font-bold">{currencySymbol}</span>
              </div>
             <input 
                type="number" 
                placeholder="Limit" 
                value={catLimit} 
                onChange={(e) => setCatLimit(e.target.value)} 
-               className="w-full rounded-lg border-slate-200 bg-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm py-2.5 pl-7 outline-none" 
+               className="placeholder:text-slate-500 w-full rounded-lg border-border bg-background text-foreground shadow-sm focus:border-primary focus:ring-primary text-sm py-2.5 pl-7 outline-none transition-all" 
                required 
             />
           </div>
@@ -267,7 +304,7 @@ export default function BudgetManager({
             <button 
                type="submit" 
                disabled={isSaving} 
-               className="w-full sm:w-auto h-[42px] px-6 bg-slate-800 hover:bg-slate-900 text-white text-sm font-medium rounded-lg shadow-sm disabled:opacity-50 transition-colors"
+               className="w-full sm:w-auto h-[42px] px-6 bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-medium rounded-lg shadow-sm disabled:opacity-50 transition-colors"
             >
                {isSaving ? "..." : "Add"}
             </button>
@@ -279,15 +316,15 @@ export default function BudgetManager({
        {budgets.length > 0 && (
         <section className="space-y-3">
           {budgets.map((budget) => (
-             <div key={budget.id} className="group flex items-center justify-between p-3 bg-white rounded-xl border border-transparent hover:border-slate-200 hover:shadow-sm transition-all duration-200">
+             <div key={budget.id} className="group flex items-center justify-between p-3 bg-card rounded-xl border border-transparent hover:border-border hover:shadow-sm transition-all duration-200">
                 {/* Left Side */}
                 <div className="flex items-center gap-3 overflow-hidden">
-                    <div className="w-10 h-10 shrink-0 rounded-full bg-indigo-50 text-indigo-500 flex items-center justify-center">
+                    <div className="w-10 h-10 shrink-0 rounded-full bg-primary/10 text-primary flex items-center justify-center">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path><path d="M22 12A10 10 0 0 0 12 2v10z"></path></svg>
                     </div>
                     <div className="min-w-0">
-                        <p className="font-bold text-slate-700 text-sm truncate">{budget.category}</p>
-                        <p className="text-xs text-slate-400">Monthly Limit</p>
+                        <p className="font-bold text-foreground text-sm truncate">{budget.category}</p>
+                        <p className="text-xs text-muted-foreground">Monthly Limit</p>
                     </div>
                 </div>
 
@@ -299,20 +336,20 @@ export default function BudgetManager({
                                 type="number" 
                                 value={editAmount}
                                 onChange={(e) => setEditAmount(e.target.value)}
-                                className="w-16 sm:w-20 text-right bg-slate-50 rounded border border-indigo-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 py-1 px-1 sm:px-2 text-sm font-bold text-slate-800 outline-none"
+                                className="w-16 sm:w-20 text-right bg-background rounded border border-primary focus:border-primary focus:ring-1 focus:ring-primary py-1 px-1 sm:px-2 text-sm font-bold text-foreground outline-none"
                                 autoFocus
                             />
-                            <button onClick={() => saveEdit(budget.category)} className="text-emerald-600 hover:bg-emerald-50 p-1.5 rounded-md"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></button>
-                            <button onClick={() => setEditingId(null)} className="text-slate-400 hover:bg-slate-100 p-1.5 rounded-md"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+                            <button onClick={() => saveEdit(budget.category)} className="text-secondary hover:bg-secondary/10 p-1.5 rounded-md"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></button>
+                            <button onClick={() => setEditingId(null)} className="text-muted-foreground hover:bg-muted p-1.5 rounded-md"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
                         </div>
                    ) : (
                        <>
-                           <p className="font-bold text-slate-700 text-sm sm:text-base">#{budget.limit.toLocaleString()}</p>
+                           <p className="font-bold text-foreground text-sm sm:text-base">{currencySymbol}{budget.limit.toLocaleString()}</p>
                            <div className="flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-200">
-                                <button onClick={() => startEditing(budget)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md">
+                                <button onClick={() => startEditing(budget)} className="p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-md">
                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                                 </button>
-                                <button onClick={() => handleDelete(budget.id)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md">
+                                <button onClick={() => handleDelete(budget.id)} className="p-1.5 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded-md">
                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                                 </button>
                            </div>

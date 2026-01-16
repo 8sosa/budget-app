@@ -18,10 +18,10 @@ model User {
   emailVerified DateTime?
   image         String?
   password      String?
+  currency      String    @default("₦")
   accounts      Account[]
   sessions      Session[]
   
-  // RENAME: This is now your "Default" template for new months
   defaultMonthlyBudget Float     @default(0) 
   yearlyBudget         Float     @default(0)
    
@@ -73,7 +73,6 @@ model Transaction {
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-// ✅ NEW MODEL: Stores the Global Limit for a specific month
 model MonthlyCap {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
   userId    String   @db.ObjectId

@@ -1,26 +1,81 @@
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
+@layer base {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    /* --- LIGHT MODE --- */
+    --background: 255 20% 97%; 
+    --foreground: 260 20% 20%; 
+
+    --card: 0 0% 100%;
+    --card-foreground: 260 20% 20%;
+    
+    --popover: 0 0% 100%;
+    --popover-foreground: 260 20% 20%;
+
+    --primary: 270 60% 70%; 
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 150 60% 45%; 
+    --secondary-foreground: 0 0% 100%;
+
+    --accent: 45 90% 50%; 
+    --accent-foreground: 0 0% 100%;
+
+    --muted: 240 10% 96%;
+    --muted-foreground: 260 10% 60%;
+
+    --border: 240 10% 90%;
+    --input: 240 10% 90%;
+    --ring: 270 60% 70%;
+  }
+
+  .dark {
+    /* --- DARK MODE --- */
+    --background: 260 40% 10%;
+    --foreground: 260 10% 90%;
+
+    --card: 260 30% 15%;
+    --card-foreground: 260 10% 90%;
+    
+    --popover: 260 30% 15%;
+    --popover-foreground: 260 10% 90%;
+
+    --primary: 270 60% 75%;
+    --primary-foreground: 260 40% 10%;
+
+    --secondary: 150 50% 50%;
+    --secondary-foreground: 0 0% 100%;
+
+    --accent: 45 90% 60%;
+    --accent-foreground: 0 0% 100%;
+
+    --muted: 260 30% 20%;
+    --muted-foreground: 260 10% 70%;
+
+    --border: 260 30% 25%;
+    --input: 260 30% 25%;
+    --ring: 270 60% 75%;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer base {
+  * {
+    /* ✅ FIXED: Use standard CSS. 
+       Replaced "@apply border-border" with "border-color: ..." */
+    border-color: hsl(var(--border));
+  }
+  
+  body {
+    /* ✅ FIXED: Use standard CSS. 
+       Replaced "@apply bg-background text-foreground" */
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    
+    font-feature-settings: "rlig" 1, "calt" 1;
+    transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 500ms;
+  }
 }

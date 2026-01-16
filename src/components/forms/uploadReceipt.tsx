@@ -1,13 +1,15 @@
 "use client";
+
 import { useRouter } from "next/navigation";
 import { useState, useRef } from "react";
 import { uploadToCloudinary } from "@/app/actions/upload";
 
 type Props = {
   budgetCategories: string[];
+  currencySymbol: string; // Added currency prop
 };
 
-export default function UploadReceipt({ budgetCategories }: Props) {
+export default function UploadReceipt({ budgetCategories, currencySymbol }: Props) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<"scan" | "manual">("scan");
   
@@ -69,7 +71,12 @@ export default function UploadReceipt({ budgetCategories }: Props) {
     setIsScanning(true);
 
     try {
-      const uploadData = await uploadToCloudinaryWrapper(file);
+      // Wrapper needed because server actions can't take raw File objects directly in some setups,
+      // but assuming uploadToCloudinary handles FormData:
+      const formData = new FormData();
+      formData.append("file", file);
+      const uploadData = await uploadToCloudinary(formData);
+      
       const response = await fetch("/api/scan-receipt", {
         method: "POST",
         body: JSON.stringify({ imageUrl: uploadData.url }),
@@ -89,28 +96,17 @@ export default function UploadReceipt({ budgetCategories }: Props) {
     }
   };
 
-  async function uploadToCloudinaryWrapper(file: File) {
-    const formData = new FormData();
-    formData.append("file", file);
-    return await uploadToCloudinary(formData);
-  }
-
   async function handleSave(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    console.log("Saving transaction...");
     setSaving(true);
-    console.log("Saving transaction step 1...");
 
     const formData = new FormData(e.currentTarget);
-    console.log("Form Data:", Array.from(formData.entries()));
     const transactionData = {
       merchant: formData.get("merchant"),
       date: formData.get("date"),
       amount: parseFloat(formData.get("total") as string), 
       category: formData.get("category"),
     };
-
-    console.log("Saving transaction:", transactionData);
 
     try {
       const res = await fetch("/api/transactions", {
@@ -119,23 +115,22 @@ export default function UploadReceipt({ budgetCategories }: Props) {
         body: JSON.stringify(transactionData),
       });
 
-     if (res.ok) {
+      if (res.ok) {
         setFile(null);          // Clear the image
         setPreview(null);       // Clear the preview
         setScanResult(null);    // Clear the form
         setActiveTab("scan");   // Reset tab
         
-        router.refresh();       // Refreshes the Dashboard data without reloading the page
-        
-        alert("Transaction saved!"); if (res.ok) {
-        window.location.reload(); 
+        router.refresh();       // Refreshes the Dashboard data
+        // Small delay to allow refresh to happen before UI feedback if needed
+        setTimeout(() => alert("Transaction saved!"), 100);
       } else {
         const err = await res.json();
         alert("Failed: " + err.error);
       }
-    }
     } catch (error) {
       console.error(error);
+      alert("An error occurred while saving.");
     } finally {
       setSaving(false);
     }
@@ -147,7 +142,7 @@ export default function UploadReceipt({ budgetCategories }: Props) {
       
       {/* Merchant Input */}
       <div>
-        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Merchant</label>
+        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Merchant</label>
         <div className="relative">
           <input 
             name="merchant" 
@@ -155,18 +150,18 @@ export default function UploadReceipt({ budgetCategories }: Props) {
             required
             defaultValue={initialData?.merchant || ""} 
             placeholder="e.g. Starbucks"
-            className="w-full bg-slate-50 border border-slate-200 text-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 block p-3 outline-none transition-all placeholder:text-slate-300 text-base sm:text-sm"
+            className="placeholder:text-slate-700 dark:placeholder:text-slate-200 w-full bg-slate-50 text-foreground text-slate-700 placeholder:text-slate-500 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 block p-3 outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-slate-600 text-base sm:text-sm"
           />
         </div>
       </div>
 
-      {/* Amount & Date Grid - Stacked on Mobile, Side-by-side on Desktop */}
+      {/* Amount & Date Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
         <div>
-          <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Total</label>
+          <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Total</label>
           <div className="relative">
              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <span className="text-slate-400 font-bold">#</span>
+                <span className="text-slate-400 dark:text-slate-500 font-bold">{currencySymbol}</span>
              </div>
             <input 
               name="total" 
@@ -175,31 +170,31 @@ export default function UploadReceipt({ budgetCategories }: Props) {
               required
               defaultValue={initialData?.total || ""} 
               placeholder="0.00"
-              className="w-full bg-slate-50 border border-slate-200 text-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 block p-3 pl-8 outline-none transition-all placeholder:text-slate-300 text-base sm:text-sm"
+            className="placeholder:text-slate-700 dark:placeholder:text-slate-200 w-full bg-slate-50 text-foreground text-slate-700 placeholder:text-slate-500 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 block p-3 outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-slate-600 text-base sm:text-sm"
             />
           </div>
         </div>
         <div>
-          <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Date</label>
+          <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Date</label>
           <input 
             name="date" 
             type="date" 
             required
             defaultValue={initialData?.date ? new Date(initialData.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]} 
-            className="w-full bg-slate-50 border border-slate-200 text-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 block p-3 outline-none transition-all text-base sm:text-sm"
+            className="placeholder:text-slate-900 w-full bg-slate-50 text-foreground text-slate-700 placeholder:text-slate-500 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 block p-3 outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-slate-600 text-base sm:text-sm"
           />
         </div>
       </div>
 
       {/* Category Select */}
       <div className="relative group">
-        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Category</label>
+        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Category</label>
         <div className="relative">
           <select 
             name="category" 
             required
             defaultValue={initialData?.category || ""}
-            className="w-full appearance-none bg-slate-50 border border-slate-200 text-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 block p-3 pr-10 outline-none transition-all text-base sm:text-sm"
+            className="w-full appearance-none bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 block p-3 pr-10 outline-none transition-all text-base sm:text-sm"
           >
             <option value="" disabled>Select Category</option>
             {budgetCategories.map((cat) => (
@@ -207,7 +202,7 @@ export default function UploadReceipt({ budgetCategories }: Props) {
             ))}
             <option value="Uncategorized">Uncategorized</option>
           </select>
-          <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-500">
+          <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-500 dark:text-slate-400">
             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
           </div>
         </div>
@@ -216,7 +211,7 @@ export default function UploadReceipt({ budgetCategories }: Props) {
       <button 
         type="submit" 
         disabled={saving}
-        className="w-full mt-2 py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-xl shadow-md shadow-indigo-100 disabled:opacity-50 transition-all transform active:scale-[0.98] text-sm sm:text-base"
+        className="w-full mt-2 py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-xl shadow-md shadow-indigo-100 dark:shadow-none disabled:opacity-50 transition-all transform active:scale-[0.98] text-sm sm:text-base"
       >
         {saving ? "Saving..." : "Save Transaction"}
       </button>
@@ -224,20 +219,28 @@ export default function UploadReceipt({ budgetCategories }: Props) {
   );
 
   return (
-    // Adaptive padding: p-4 on mobile, p-6 on desktop
-    <div className="w-full bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-100">
+    // Main Container: Responsive padding and colors
+    <div className="w-full bg-white dark:bg-slate-950 p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 transition-colors">
       
       {/* TABS */}
-      <div className="flex bg-slate-100 p-1 rounded-xl mb-6">
+      <div className="flex bg-slate-100 dark:bg-slate-900 p-1 rounded-xl mb-6 transition-colors">
         <button
           onClick={() => { setActiveTab("scan"); setScanResult(null); }}
-          className={`flex-1 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all duration-200 ${activeTab === "scan" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+          className={`flex-1 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all duration-200 
+            ${activeTab === "scan" 
+              ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-sm" 
+              : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+            }`}
         >
           📷 <span className="hidden sm:inline">Scan Receipt</span><span className="sm:hidden">Scan</span>
         </button>
         <button
           onClick={() => { setActiveTab("manual"); setScanResult(null); }}
-          className={`flex-1 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all duration-200 ${activeTab === "manual" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+          className={`flex-1 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all duration-200 
+            ${activeTab === "manual" 
+              ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-sm" 
+              : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+            }`}
         >
           ✍️ <span className="hidden sm:inline">Manual Entry</span><span className="sm:hidden">Manual</span>
         </button>
@@ -253,7 +256,10 @@ export default function UploadReceipt({ budgetCategories }: Props) {
                 <div 
                   className={`
                     relative border-2 border-dashed rounded-xl p-6 sm:p-8 text-center transition-all duration-200 ease-in-out cursor-pointer
-                    ${dragActive ? "border-indigo-500 bg-indigo-50 scale-[1.02]" : "border-slate-300 hover:border-indigo-300 hover:bg-slate-50"}
+                    ${dragActive 
+                      ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20 scale-[1.02]" 
+                      : "border-slate-300 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-700 hover:bg-slate-50 dark:hover:bg-slate-900"
+                    }
                   `}
                   onDragEnter={handleDrag}
                   onDragLeave={handleDrag}
@@ -270,34 +276,34 @@ export default function UploadReceipt({ budgetCategories }: Props) {
                     />
                     
                     <div className="flex flex-col items-center gap-3">
-                      <div className={`p-4 rounded-full ${dragActive ? "bg-white text-indigo-600" : "bg-indigo-50 text-indigo-500"}`}>
+                      <div className={`p-4 rounded-full transition-colors ${dragActive ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400" : "bg-indigo-50 dark:bg-slate-800 text-indigo-500 dark:text-indigo-400"}`}>
                         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                       </div>
                       <div>
-                        <p className="font-bold text-slate-700 text-sm">Tap to upload <span className="hidden sm:inline">or drag & drop</span></p>
-                        <p className="text-xs text-slate-400 mt-1">SVG, PNG, JPG (max 4MB)</p>
+                        <p className="font-bold text-slate-700 dark:text-slate-200 text-sm">Tap to upload <span className="hidden sm:inline">or drag & drop</span></p>
+                        <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">SVG, PNG, JPG (max 4MB)</p>
                       </div>
                     </div>
                 </div>
               ) : (
                 // PREVIEW ZONE
-                <div className="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-50">
-                   <div className="h-48 sm:h-56 w-full flex items-center justify-center bg-slate-100 relative">
+                <div className="relative rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
+                   <div className="h-48 sm:h-56 w-full flex items-center justify-center bg-slate-100 dark:bg-slate-800 relative">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={preview} alt="Preview" className="object-contain max-h-full max-w-full p-2" />
                       <button 
                         onClick={() => { setFile(null); setPreview(null); }}
-                        className="absolute top-2 right-2 bg-white/80 hover:bg-white text-slate-600 p-2 rounded-full shadow-sm backdrop-blur-sm"
+                        className="absolute top-2 right-2 bg-white/80 dark:bg-slate-800/80 hover:bg-white dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 p-2 rounded-full shadow-sm backdrop-blur-sm"
                       >
                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                       </button>
                    </div>
                    
-                   <div className="p-4 bg-white">
+                   <div className="p-4 bg-white dark:bg-slate-950">
                       <button
                         onClick={handleScan}
                         disabled={isScanning}
-                        className="w-full py-3 bg-indigo-600 text-white rounded-xl text-sm font-medium hover:bg-indigo-700 shadow-md shadow-indigo-100 disabled:opacity-50 transition-all active:scale-[0.98]"
+                        className="w-full py-3 bg-indigo-600 text-white rounded-xl text-sm font-medium hover:bg-indigo-700 shadow-md shadow-indigo-100 dark:shadow-none disabled:opacity-50 transition-all active:scale-[0.98]"
                       >
                           {isScanning ? (
                             <span className="flex items-center justify-center gap-2">
@@ -314,13 +320,13 @@ export default function UploadReceipt({ budgetCategories }: Props) {
 
           {scanResult && (
             <div className="animate-in slide-in-from-bottom-4 fade-in duration-500">
-              <div className="p-3 sm:p-4 bg-emerald-50 border border-emerald-100 rounded-xl flex items-start gap-3 mb-4">
-                 <div className="bg-emerald-100 text-emerald-600 p-1.5 sm:p-2 rounded-full shrink-0">
+              <div className="p-3 sm:p-4 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-900/50 rounded-xl flex items-start gap-3 mb-4">
+                 <div className="bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400 p-1.5 sm:p-2 rounded-full shrink-0">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
                  </div>
                  <div>
-                   <p className="text-sm font-bold text-emerald-800">Scan Complete!</p>
-                   <p className="text-xs text-emerald-600 mt-1">AI extracted the details below. Please verify the category.</p>
+                   <p className="text-sm font-bold text-emerald-800 dark:text-emerald-400">Scan Complete!</p>
+                   <p className="text-xs text-emerald-600 dark:text-emerald-500 mt-1">AI extracted the details below. Please verify the category.</p>
                  </div>
               </div>
               <TransactionForm initialData={scanResult} />

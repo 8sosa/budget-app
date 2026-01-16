@@ -4,6 +4,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recha
 
 type Props = {
   data: { name: string; value: number }[];
+  currencySymbol: string;
 };
 
 const COLORS = [
@@ -16,15 +17,16 @@ const COLORS = [
   "#64748b", // Slate 500
 ];
 
-const CustomTooltip = ({ active, payload }: any) => {
+// Custom Tooltip Component that accepts the currency prop
+const CustomTooltip = ({ active, payload, currency }: any) => {
   if (active && payload && payload.length) {
     return (
-      <div className="bg-white p-3 sm:p-4 rounded-xl shadow-xl border border-slate-100 z-50 relative">
-        <p className="text-slate-600 text-[10px] sm:text-xs font-semibold mb-1 uppercase tracking-wider">
+      <div className="bg-white dark:bg-slate-900 p-3 sm:p-4 rounded-xl shadow-xl border border-slate-100 dark:border-slate-800 z-50 relative">
+        <p className="text-slate-500 dark:text-slate-400 text-[10px] sm:text-xs font-semibold mb-1 uppercase tracking-wider">
           {payload[0].name}
         </p>
-        <p className="text-indigo-600 font-bold text-base sm:text-lg">
-          #{payload[0].value.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+        <p className="text-indigo-600 dark:text-indigo-400 font-bold text-base sm:text-lg">
+          {currency}{payload[0].value.toLocaleString(undefined, { minimumFractionDigits: 2 })}
         </p>
       </div>
     );
@@ -32,10 +34,10 @@ const CustomTooltip = ({ active, payload }: any) => {
   return null;
 };
 
-export default function SpendingChart({ data }: Props) {
+export default function SpendingChart({ data, currencySymbol }: Props) {
   if (data.length === 0) {
     return (
-      <div className="h-64 flex items-center justify-center text-slate-400 text-sm bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
+      <div className="h-64 flex items-center justify-center text-slate-400 dark:text-slate-500 text-sm bg-slate-50/50 dark:bg-slate-900/50 rounded-xl border border-dashed border-slate-200 dark:border-slate-800">
         No spending data yet
       </div>
     );
@@ -54,7 +56,6 @@ export default function SpendingChart({ data }: Props) {
             cy="50%"
             // 2. Percentage-based Radius:
             // This ensures the donut scales relative to the container size
-            // rather than being fixed pixel widths.
             innerRadius="55%" 
             outerRadius="75%" 
             paddingAngle={5}
@@ -71,7 +72,11 @@ export default function SpendingChart({ data }: Props) {
             ))}
           </Pie>
           
-          <Tooltip content={<CustomTooltip />} />
+          {/* Pass the currency symbol to the custom tooltip */}
+          <Tooltip 
+            content={<CustomTooltip currency={currencySymbol} />}
+            cursor={{ fill: 'transparent' }}
+          />
           
           <Legend 
             verticalAlign="bottom" 
@@ -80,9 +85,8 @@ export default function SpendingChart({ data }: Props) {
             // 3. Responsive Legend Margin:
             wrapperStyle={{ paddingTop: "20px" }}
             // 4. Responsive Text Size:
-            // Smaller text on mobile to prevent overflow
             formatter={(value) => (
-              <span className="text-slate-600 text-xs sm:text-sm font-medium ml-1">
+              <span className="text-slate-600 dark:text-slate-400 text-xs sm:text-sm font-medium ml-1">
                 {value}
               </span>
             )} 
