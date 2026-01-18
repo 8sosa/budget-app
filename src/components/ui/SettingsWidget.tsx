@@ -17,7 +17,7 @@ export default function SettingsWidget({ currentCurrency }: { currentCurrency: s
   const [isOpen, setIsOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   
-  // ✅ New: Track if the user is using touch to prevent Hover/Click conflicts
+  // Track if the user is using touch to prevent Hover/Click conflicts
   const [isTouch, setIsTouch] = useState(false); 
 
   const widgetRef = useRef<HTMLDivElement>(null);
@@ -40,16 +40,15 @@ export default function SettingsWidget({ currentCurrency }: { currentCurrency: s
       ref={widgetRef} 
       className="relative z-50"
       
-      // ✅ 1. Touch Logic: If user touches, we disable hover logic temporarily
+      // Touch Logic: If user touches, we disable hover logic temporarily
       onTouchStart={() => setIsTouch(true)}
 
-      // ✅ 2. Hover Logic: Only runs if NOT using touch
+      // Hover Logic: Only runs if NOT using touch
       onMouseEnter={() => !isTouch && setIsOpen(true)}
       onMouseLeave={() => !isTouch && setIsOpen(false)}
     >
       {/* Settings Button */}
       <button 
-        // ✅ 3. Click Logic: Handles Mobile Taps AND Desktop Clicks
         onClick={() => setIsOpen((prev) => !prev)}
         className={`
           p-2.5 rounded-xl border transition-all duration-200 group
@@ -73,7 +72,25 @@ export default function SettingsWidget({ currentCurrency }: { currentCurrency: s
 
       {/* Dropdown Menu */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-800 p-5 animate-in fade-in slide-in-from-top-2 z-50">
+        <>
+        {/* 1. Mobile Backdrop (closes on click) */}
+        <div 
+            className="fixed inset-0 bg-black/20 z-40 md:hidden backdrop-blur-[1px]" 
+            onClick={() => setIsOpen(false)}
+        />
+
+        {/* 2. Responsive Dropdown */}
+        <div className={`
+            /* MOBILE: Fixed to screen, centered, wide */
+            fixed left-4 right-4 top-20 z-50
+            
+            /* DESKTOP (md): Absolute to button, standard width */
+            md:absolute md:right-0 md:top-full md:left-auto md:w-72 md:mt-2
+            
+            bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 
+            rounded-2xl shadow-xl border border-slate-100 dark:border-slate-800 
+            p-5 animate-in fade-in slide-in-from-top-2
+        `}>
           
           {/* Theme Section */}
           <div className="mb-6">
@@ -131,6 +148,7 @@ export default function SettingsWidget({ currentCurrency }: { currentCurrency: s
             </div>
           </div>
         </div>
+        </>
       )}
     </div>
   );

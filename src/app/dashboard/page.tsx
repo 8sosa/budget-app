@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import Link from "next/link";
 import prisma from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import UploadReceipt from "@/components/forms/uploadReceipt"; 
@@ -253,15 +254,22 @@ export default async function Dashboard({
                 )}
               </section>
 
-              {/* Recent Transactions */}
               <section className="bg-card/80 backdrop-blur-sm p-6 rounded-2xl shadow-sm border border-border">
-                <h2 className="text-lg font-bold text-foreground mb-4 flex items-center gap-2">
-                    <span className="text-accent text-xl">💳</span> Recent Transactions
-                </h2>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
+                      <span className="text-accent text-xl">💳</span> Recent Transactions
+                  </h2>
+                  <Link 
+                    href="/transactions" 
+                    className="text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:underline hover:opacity-80 transition-opacity"
+                  >
+                    View All &rarr;
+                  </Link>
+                </div>
+
                 <div className="space-y-2">
-                  {user.transactions.map(t => (
+                  {user.transactions.slice(0, 5).map(t => ( // Display only first 5
                     <div key={t.id} className="hover:bg-muted/50 rounded-lg transition-colors -mx-2 px-2 py-1">
-                        {/* Note: Update TransactionItem to accept `currency` prop */}
                         <TransactionItem 
                             id={t.id}
                             description={t.description || "Unknown"}
@@ -269,6 +277,7 @@ export default async function Dashboard({
                             date={t.date}
                             category={t.category}
                             currency={currency} 
+                            hasReceipt={!!t.receiptUrl} // Pass if receipt exists
                         />
                     </div>
                   ))}

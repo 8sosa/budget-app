@@ -5,6 +5,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/layout/Navbar";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
+import AutoLogoutProvider from "@/components/providers/AutoLogoutProvider";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -32,12 +33,14 @@ export default function RootLayout({
             disableTransitionOnChange
         >
           <Providers>
-            <Toaster position="bottom-center" />
-            <Navbar />
-            
-            <main>
-              {children}
-            </main>
+            <AutoLogoutProvider>
+              <Toaster position="bottom-center" />
+              <Navbar />
+              
+              <main>
+                {children}
+              </main>
+            </AutoLogoutProvider>
           </Providers>
         </ThemeProvider>
       </body>
