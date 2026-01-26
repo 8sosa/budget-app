@@ -11,6 +11,10 @@ const nextConfig: NextConfig = {
         protocol: "https",
         hostname: "res.cloudinary.com",
       },
+      {
+        protocol: 'https',
+        hostname: '*.googleusercontent.com', // Matches lh3, lh4, etc.
+      },
     ],
   },
 };

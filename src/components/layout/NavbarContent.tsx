@@ -2,10 +2,15 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import UserAccountNav from "../ui/UserAccountNav"; 
+import { usePathname } from "next/navigation";
+import UserAccountNav from "../ui/UserAccountNav";
 
-const navItems = [
-  { name: "Dashboard", href: "/dashboard" },
+// ✅ 1. Variable is named 'navLinks'
+const navLinks = [
+    { name: "Overview", href: "/dashboard" },
+    { name: "Transactions", href: "/transactions" },
+    { name: "Budget", href: "/budget" },
+    { name: "Profile", href: "/profile" },
 ];
 
 interface NavbarContentProps {
@@ -20,9 +25,10 @@ interface NavbarContentProps {
 export default function NavbarContent({ user }: NavbarContentProps) {
   const [isOpen, setIsOpen] = useState(false);
   const toggleMenu = () => setIsOpen(!isOpen);
+    const pathname = usePathname();
+
 
   return (
-    // Added dark:bg-slate-950/80 and dark:border-slate-800 for dark mode frosted glass
     <nav className="sticky top-0 z-50 w-full border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-950/80 backdrop-blur-md transition-colors duration-300">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         
@@ -36,31 +42,35 @@ export default function NavbarContent({ user }: NavbarContentProps) {
             </div>
             <span className="text-xl font-bold tracking-tight text-slate-900 dark:text-white transition-colors">
               Budget
-              <span className="bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">AI</span>
+              <span className="bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent"> Buddy</span>
             </span>
           </Link>
 
           {/* DESKTOP NAVIGATION */}
-          <div className="hidden md:flex md:items-center md:gap-6">
-            {navItems.map((item) => (
-              <Link 
-                key={item.name} 
-                href={item.href} 
-                className="text-sm font-medium text-slate-600 dark:text-slate-400 transition-colors hover:text-indigo-600 dark:hover:text-indigo-400"
-              >
-                {item.name}
-              </Link>
-            ))}
+          <div className="hidden md:flex items-center gap-1">
+            {navLinks.map((link) => {
+              const isActive = pathname === link.href;
+              return (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    isActive
+                      ? "bg-slate-100 dark:bg-slate-800 text-indigo-600 dark:text-indigo-400"
+                      : "text-slate-500 hover:text-slate-900 dark:hover:text-slate-200"
+                  }`}
+                >
+                  {link.name}
+                </Link>
+              );
+            })}
           </div>
         </div>
 
         {/* RIGHT SIDE: USER ACTIONS & MOBILE TOGGLE */}
         <div className="flex items-center gap-4">
-          
-          {/* PASS USER DATA DOWN HERE */}
           <UserAccountNav user={user} />
 
-          {/* MOBILE MENU BUTTON */}
           <button 
             onClick={toggleMenu} 
             className="inline-flex items-center justify-center rounded-md p-2 text-slate-600 dark:text-slate-400 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500 md:hidden"
@@ -83,7 +93,8 @@ export default function NavbarContent({ user }: NavbarContentProps) {
       {isOpen && (
         <div className="border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 md:hidden transition-colors">
           <div className="space-y-1 px-4 py-4">
-            {navItems.map((item) => (
+            {/* ✅ 3. FIX: Changed navItems to navLinks */}
+            {navLinks.map((item) => (
               <Link 
                 key={item.name} 
                 href={item.href} 
