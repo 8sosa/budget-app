@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import prisma from "@/lib/prisma";
 import Image from "next/image";
 import SignOutButton from "@/components/ui/SignOutButton";
+import MonoConnectButton from "@/components/ui/MonoConnectButton";
+import { ClearDataButton } from "@/components/ui/ClearDataButton";
 
 export default async function ProfilePage() {
   const session = await getServerSession(authOptions);
@@ -44,6 +46,16 @@ export default async function ProfilePage() {
         </div>
       </div>
 
+      {/* mono Section */}
+      <div className="mt-8 space-y-4">
+        <div className="bg-white dark:bg-slate-950 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+            <h3 className="font-semibold mb-4">Connect Mono</h3>
+            <div className="flex justify-between items-center">
+                <span className="text-slate-600 dark:text-slate-400">Connect to your bank account</span>
+                <MonoConnectButton />
+            </div>
+        </div>
+      </div>
       {/* Settings Section */}
       <div className="mt-8 space-y-4">
         <div className="bg-white dark:bg-slate-950 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
@@ -51,6 +63,16 @@ export default async function ProfilePage() {
             <div className="flex justify-between items-center">
                 <span className="text-slate-600 dark:text-slate-400">Sign out of your account</span>
                 <SignOutButton />
+            </div>
+        </div>
+      </div>
+      {/* clear Section */}
+      <div className="mt-8 space-y-4">
+        <div className="bg-white dark:bg-slate-950 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+            <h3 className="font-semibold mb-4">Delete all Transactions</h3>
+            <div className="flex justify-between items-center">
+                <span className="text-slate-600 dark:text-slate-400">Clear all your transactions.</span>
+                <ClearDataButton />
             </div>
         </div>
       </div>

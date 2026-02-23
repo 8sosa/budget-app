@@ -1,42 +1,67 @@
 "use server";
 
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth"; // We will ensure this exists in a moment
-import prisma from "@/lib/prisma"; // Make sure you have your prisma client instance
+import { authOptions } from "@/lib/auth";
+import prisma from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
-// 1. Define the validation schema
+// Validation schema for Create/Update
 const TransactionSchema = z.object({
-  amount: z.coerce.number().positive(), // coerce converts strings to numbers
-  description: z.string().min(1, "Merchant/Description is required"),
+  amount: z.coerce.number(), // Removed .positive() to allow for expenses/debits
+  description: z.string().min(1, "Description is required"),
   date: z.coerce.date(),
   category: z.string().min(1),
   receiptUrl: z.string().optional(),
 });
 
+/**
+ * UPDATE TRANSACTION
+ * Used for reassigning categories and editing descriptions
+ */
+export async function updateTransaction(id: string, data: { description: string, category: string, receiptUrl?: string }) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user) throw new Error("Unauthorized");
+
+  // Security: Ensure the user actually owns this transaction
+  const transaction = await prisma.transaction.findUnique({ where: { id } });
+  if (!transaction || transaction.userId !== (session.user as any).id) {
+    throw new Error("Forbidden");
+  }
+
+  await prisma.transaction.update({
+    where: { id },
+    data: {
+      description: data.description,
+      category: data.category,
+      receiptUrl: data.receiptUrl,
+    },
+  });
+
+  // Clear caches to show updated data immediately
+  revalidatePath(`/transactions/${id}`);
+  revalidatePath("/dashboard");
+}
+
+/**
+ * SAVE NEW TRANSACTION (Manual Entry)
+ */
 export async function saveTransaction(prevState: any, formData: FormData) {
-  // 2. Authenticate
   const session = await getServerSession(authOptions); 
-  // Note: You need to pass your authOptions here. If you haven't moved them to a separate file yet, see the note below.
   
-  if (!session || !session.user || !session.user.email) {
+  if (!session?.user?.email) {
     return { message: "Unauthorized. Please log in." };
   }
 
-  // 3. Find the user in the DB (to get their ID)
   const user = await prisma.user.findUnique({
     where: { email: session.user.email },
   });
 
-  if (!user) {
-    return { message: "User not found." };
-  }
+  if (!user) return { message: "User not found." };
 
-  // 4. Validate Data
   const validatedFields = TransactionSchema.safeParse({
     amount: formData.get("amount"),
-    description: formData.get("merchant"), // Mapping 'merchant' form field to 'description' db field
+    description: formData.get("description") || formData.get("merchant"),
     date: formData.get("date"),
     category: formData.get("category"),
     receiptUrl: formData.get("receiptUrl"),
@@ -49,39 +74,30 @@ export async function saveTransaction(prevState: any, formData: FormData) {
     };
   }
 
-  const data = validatedFields.data;
-
   try {
-    // 5. Save to MongoDB via Prisma
     await prisma.transaction.create({
       data: {
+        ...validatedFields.data,
         userId: user.id,
-        amount: data.amount,
-        description: data.description,
-        date: data.date,
-        category: data.category,
-        receiptUrl: data.receiptUrl,
-        currency: "USD", // Default or extract from form if you want multi-currency
+        currency: "NGN", // Updated to NGN for your use case
       },
     });
 
-    // 6. Revalidate the dashboard so the new transaction shows up instantly
     revalidatePath("/dashboard");
-    
     return { success: true, message: "Transaction saved successfully!" };
-
   } catch (e) {
-    console.error(e);
     return { message: "Database Error: Failed to create transaction." };
   }
 }
 
+/**
+ * DELETE TRANSACTION
+ */
 export async function deleteTransaction(transactionId: string) {
   const session = await getServerSession(authOptions);
-  if (!session || !session.user?.email) return { error: "Unauthorized" };
+  if (!session?.user?.email) return { error: "Unauthorized" };
 
   try {
-    // Verify the transaction belongs to the user before deleting
     const user = await prisma.user.findUnique({
       where: { email: session.user.email },
       select: { id: true }
@@ -92,15 +108,42 @@ export async function deleteTransaction(transactionId: string) {
     await prisma.transaction.delete({
       where: {
         id: transactionId,
-        userId: user.id // Security: Ensure ownership
+        userId: user.id 
       }
     });
 
-    // Refresh the dashboard so the item disappears immediately
     revalidatePath("/dashboard");
+    revalidatePath("/transactions");
     return { success: true };
   } catch (error) {
     return { error: "Failed to delete" };
   }
 }
 
+export async function clearUserTransactions() {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.email) throw new Error("Unauthorized");
+
+    // 1. Find the user ID
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email },
+      select: { id: true }
+    });
+
+    if (!user) throw new Error("User not found");
+
+    // 2. Delete all transactions belonging to this user
+    const result = await prisma.transaction.deleteMany({
+      where: { userId: user.id }
+    });
+
+    // 3. Refresh the finance page data
+    revalidatePath("/finances");
+
+    return { success: true, count: result.count };
+  } catch (error) {
+    console.error("Delete Error:", error);
+    return { success: false, error: "Failed to clear transactions" };
+  }
+}

@@ -52,20 +52,25 @@ export default function UserAccountNav({ user }: UserAccountNavProps) {
       </div>
 
       {/* Avatar */}
-      <div className="relative h-9 w-9 overflow-hidden rounded-full border border-slate-200 shadow-sm ring-2 ring-transparent transition-all hover:ring-indigo-100">
-        {user.image ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={user.image}
-            alt="Profile"
-            className="h-full w-full object-cover"
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center bg-indigo-50 text-indigo-600 font-bold text-xs">
-            {user.email?.charAt(0).toUpperCase()}
+        <Link
+          href="/profile"
+          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-700 shadow-sm"
+        >
+          <div className="relative h-9 w-9 overflow-hidden rounded-full border border-slate-200 shadow-sm ring-2 ring-transparent transition-all hover:ring-indigo-100">
+              {user.image ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={user.image}
+                  alt="Profile"
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center bg-indigo-50 text-indigo-600 font-bold text-xs">
+                  {user.email?.charAt(0).toUpperCase()}
+                </div>
+              )}
           </div>
-        )}
-      </div>
+        </Link>
 
       {/* Vertical Divider */}
       <div className="mx-1 h-6 w-px bg-slate-200"></div>

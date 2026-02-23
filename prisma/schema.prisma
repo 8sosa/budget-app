@@ -20,6 +20,7 @@ model User {
   password      String?
   currency      String    @default("₦")
   accounts      Account[]
+  bankAccounts  BankStore[]
   sessions      Session[]
   
   defaultMonthlyBudget Float     @default(0) 
@@ -28,6 +29,22 @@ model User {
   transactions  Transaction[]
   budgets       Budget[]
   monthlyCaps   MonthlyCap[]   // Relation to history
+}
+
+model BankStore {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId            String   @db.ObjectId
+  monoAccountId     String   @unique // The ID from Mono
+  institutionName   String   // e.g., "Kuda Bank"
+  accountName       String?
+  accountNumber     String?
+  balance           Float    @default(0)
+  currency          String   @default("NGN")
+  lastSynced        DateTime @default(now())
+
+  transactions    Transaction[]
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Account {
@@ -43,6 +60,9 @@ model Account {
   scope             String?
   id_token          String? @db.String
   session_state     String?
+  balance           Float?   @default(0)
+  institutionName   String?  // e.g., "Kuda Bank", "GTBank"
+  lastSynced        DateTime? @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -69,6 +89,9 @@ model Transaction {
   date        DateTime @default(now())
   receiptUrl  String?
   receiptId   String?  
+
+  bankAccountId   String?  @db.ObjectId 
+  bankAccount     BankStore? @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
 
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

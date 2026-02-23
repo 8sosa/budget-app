@@ -8,9 +8,10 @@ import UserAccountNav from "../ui/UserAccountNav";
 // ✅ 1. Variable is named 'navLinks'
 const navLinks = [
     { name: "Overview", href: "/dashboard" },
-    { name: "Transactions", href: "/transactions" },
     { name: "Budget", href: "/budget" },
-    { name: "Profile", href: "/profile" },
+    { name: "Finances", href: "/finances" },
+    { name: "Transactions", href: "/transactions" },
+    // { name: "Profile", href: "/profile" },
 ];
 
 interface NavbarContentProps {

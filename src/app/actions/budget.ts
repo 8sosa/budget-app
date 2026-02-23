@@ -4,6 +4,7 @@ import prisma from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
+import { Budget } from "@prisma/client";
 
 // 1. Update Global Limits (Total Monthly/Yearly Cap)
 export async function updateGlobalBudget(amount: number, type: "monthly" | "yearly", month?: number, year?: number) {
@@ -46,34 +47,25 @@ export async function saveCategoryBudget(category: string, limit: number, month:
   const user = await prisma.user.findUnique({ where: { email: session.user.email }});
   if (!user) throw new Error("User not found");
 
-  // Step A: Check if this category ALREADY exists for this month/year
-  const existingBudget = await prisma.budget.findFirst({
+  // This one command replaces the manual check and the if/else block
+  await prisma.budget.upsert({
     where: {
-      userId: user.id,
-      category: category,
-      month: month,
-      year: year,
-    },
-  });
-
-  if (existingBudget) {
-    // Step B: Update existing
-    await prisma.budget.update({
-      where: { id: existingBudget.id },
-      data: { limit: limit },
-    });
-  } else {
-    // Step C: Create new
-    await prisma.budget.create({
-      data: {
+      userId_category_month_year: {
         userId: user.id,
         category,
-        limit,
         month,
-        year
-      }
-    });
-  }
+        year,
+      },
+    },
+    update: { limit },
+    create: {
+      userId: user.id,
+      category,
+      limit,
+      month,
+      year,
+    },
+  });
 
   revalidatePath("/dashboard");
 }
@@ -124,10 +116,10 @@ export async function copyPreviousMonthBudgets(currentMonth: number, currentYear
 
   const existingCategories = new Set(currentBudgets.map((b) => b.category));
 
-  // Filter: Only copy items that DON'T exist in the current month
+  // ✅ FIX: Explicitly type 'b' as Budget
   const budgetsToCreate = previousBudgets
-    .filter((b) => !existingCategories.has(b.category))
-    .map((b) => ({
+    .filter((b: Budget) => !existingCategories.has(b.category))
+    .map((b: Budget) => ({
       userId: user.id,
       category: b.category,
       limit: b.limit,

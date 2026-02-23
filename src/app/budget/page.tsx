@@ -133,7 +133,7 @@ const budgetLimits = currentMonthBudgets.reduce((acc, b) => {
                 viewMode={viewMode}
                 monthlyBudget={activeMonthlyCap}
                 yearlyBudget={activeYearlyCap}
-                budgets={managerBudgets} // <--- Now passes data even in Yearly mode
+                budgets={managerBudgets}
                 currentMonth={currentMonth}
                 currentYear={currentYear}
                 currencySymbol={currency}
