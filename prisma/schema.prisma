@@ -6,7 +6,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  url      = env("NETLIFY_DB_URL") // set automatically by Netlify Database
 }
 
 // --- NextAuth Models ---
