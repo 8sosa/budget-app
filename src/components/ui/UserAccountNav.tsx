@@ -1,6 +1,8 @@
 "use client";
 
 import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 import Link from "next/link";
 import SignOutButton from "./SignOutButton";
 import SettingsWidget from "./SettingsWidget";
@@ -15,18 +17,30 @@ interface UserAccountNavProps {
   } | null;
 }
 
-export default function UserAccountNav({ user }: UserAccountNavProps) {
-  const { status } = useSession();
+export default function UserAccountNav({ user: serverUser }: UserAccountNavProps) {
+  const { data: session, status } = useSession();
+  const router = useRouter();
+
+  // The navbar sits in the root layout, which Next.js doesn't re-render on
+  // client-side navigation. After signing in, the layout still holds the
+  // signed-out render, so fall back to the client session and refresh once
+  // to fetch the server data (name, currency).
+  const isStale = status === "authenticated" && !serverUser;
+  useEffect(() => {
+    if (isStale) router.refresh();
+  }, [isStale, router]);
+
+  const user = serverUser ?? (status === "authenticated" ? session?.user ?? null : null);
 
   // Use the currency passed via props, or fallback to default
-  const currency = user?.currency || "₦";
+  const currency = serverUser?.currency || "₦";
 
   if (status === "loading") {
     return <div className="h-9 w-9 animate-pulse rounded-full bg-slate-200"></div>;
   }
 
   // Fallback if no user prop is provided (though usually handled by parent)
-  if (!user) {
+  if (!user || status === "unauthenticated") {
     return (
       <Link
         href="/login"

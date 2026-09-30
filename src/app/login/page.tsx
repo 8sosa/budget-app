@@ -19,7 +19,8 @@ export default function AuthPage() {
 
   useEffect(() => {
     if (session?.status === "authenticated") {
-      router.push("/dashboard");
+      router.replace("/dashboard");
+      router.refresh(); // re-render the root layout (navbar) with the new session
     }
   }, [session?.status, router]);
 
@@ -43,7 +44,8 @@ export default function AuthPage() {
         if (res.ok) {
           // If register success, immediately log them in
           await signIn("credentials", { email, password, redirect: false });
-          router.push("/dashboard");
+          router.replace("/dashboard");
+          router.refresh();
         } else {
             const error = await res.json();
             alert(error.error || "Registration failed");
@@ -66,7 +68,8 @@ export default function AuthPage() {
       }
 
       if (callback?.ok && !callback?.error) {
-        router.push("/dashboard");
+        router.replace("/dashboard");
+          router.refresh();
       }
       setIsLoading(false);
     }
