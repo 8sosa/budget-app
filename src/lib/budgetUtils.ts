@@ -1,113 +1,138 @@
 import prisma from "@/lib/prisma";
+import { toNumber } from "@/lib/utils";
+import { normalizeCategory } from "@/lib/categories";
 
-export async function getBudgetForPeriod(email: string, month: number, year: number) {
-  const user = await prisma.user.findUnique({
-    where: { email },
-    include: {
-      // Fetch ONLY the requested month's data
-      monthlyCaps: { where: { month, year } },
-      budgets: { where: { month, year } }
-    }
-  });
+// A month with no budget of its own inherits from the most recent EARLIER month
+// that has one. Reading never writes; a month is only saved ("materialized") when
+// the user edits it, so browsing to an empty month has no side effects.
+
+type CapRow = { month: number; year: number; amount: number };
+type BudgetRow = { id: string; category: string; limit: number; month: number; year: number };
+
+type History = {
+  caps: CapRow[];
+  budgets: BudgetRow[];
+  defaultMonthlyBudget: number;
+  yearlyBudget: number;
+};
+
+export type ResolvedMonth = {
+  globalLimit: number;
+  categories: { id: string; category: string; limit: number }[];
+  isInherited: boolean;
+};
+
+const monthKey = (month: number, year: number) => year * 12 + month;
+
+async function loadHistory(userId: string, upToYear: number): Promise<History> {
+  const [user, caps, budgets] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { defaultMonthlyBudget: true, yearlyBudget: true },
+    }),
+    prisma.monthlyCap.findMany({ where: { userId, year: { lte: upToYear } } }),
+    prisma.budget.findMany({ where: { userId, year: { lte: upToYear } } }),
+  ]);
 
   if (!user) throw new Error("User not found");
 
-  // A. DATA EXISTS: Return it immediately
-  if (user.monthlyCaps.length > 0 || user.budgets.length > 0) {
-    return {
-      globalLimit: user.monthlyCaps[0]?.amount || user.defaultMonthlyBudget,
-      categories: user.budgets
-    };
-  }
-
-  // B. NO DATA: Try to Copy from Previous Month (Auto-Carryover)
-  // Find the most recent budget data
-  const lastBudget = await prisma.budget.findFirst({
-    where: { userId: user.id },
-    orderBy: [{ year: 'desc' }, { month: 'desc' }],
-  });
-  
-  const lastCap = await prisma.monthlyCap.findFirst({
-    where: { userId: user.id },
-    orderBy: [{ year: 'desc' }, { month: 'desc' }],
-  });
-
-  // If we found history, CLONE it to the new month
-  if (lastBudget || lastCap) {
-    const prevMonth = lastBudget?.month ?? month;
-    const prevYear = lastBudget?.year ?? year;
-
-    const prevCategories = await prisma.budget.findMany({
-      where: { userId: user.id, month: prevMonth, year: prevYear }
-    });
-
-    // Save the clone to DB so the user can edit it later
-    await prisma.$transaction([
-       prisma.monthlyCap.create({
-         data: {
-           userId: user.id,
-           month,
-           year,
-           amount: lastCap?.amount || user.defaultMonthlyBudget
-         }
-       }),
-       ...prevCategories.map(cat => 
-         prisma.budget.create({
-           data: {
-             userId: user.id,
-             category: cat.category,
-             limit: cat.limit,
-             month, 
-             year
-           }
-         })
-       )
-    ]);
-
-    // Recursive call to fetch the newly created data
-    return getBudgetForPeriod(email, month, year);
-  }
-
-  // C. FRESH USER: Return Defaults
   return {
-    globalLimit: user.defaultMonthlyBudget,
-    categories: []
+    defaultMonthlyBudget: toNumber(user.defaultMonthlyBudget),
+    yearlyBudget: toNumber(user.yearlyBudget),
+    caps: caps.map((c) => ({ month: c.month, year: c.year, amount: toNumber(c.amount) })),
+    budgets: budgets.map((b) => ({
+      id: b.id,
+      category: normalizeCategory(b.category),
+      limit: toNumber(b.limit),
+      month: b.month,
+      year: b.year,
+    })),
   };
 }
 
-export async function getYearlyTotalLimit(email: string, year: number) {
-  const user = await prisma.user.findUnique({
-    where: { email },
-    include: {
-      // Fetch all monthly caps for this specific year
-      monthlyCaps: {
-        where: { year },
-        orderBy: { month: 'asc' }
-      }
-    }
-  });
+function resolveMonth(history: History, month: number, year: number): ResolvedMonth {
+  const target = monthKey(month, year);
 
-  if (!user) return 0;
-
-  let totalYearlyLimit = 0;
-  
-  // Start with the user's default, or 0 if not set
-  let lastKnownLimit = user.defaultMonthlyBudget || 0;
-
-  // Loop through all 12 months (0 to 11)
-  for (let m = 0; m < 12; m++) {
-    // Check if we have a specific cap saved for this month
-    const cap = user.monthlyCaps.find(c => c.month === m);
-
-    if (cap) {
-      // If yes, update our "current" limit
-      lastKnownLimit = cap.amount;
-    }
-    
-    // Add to the running total
-    // (If cap was found, we add that. If not, we add the previous month's value)
-    totalYearlyLimit += lastKnownLimit;
+  // Latest cap at or before the target month
+  let cap: CapRow | undefined;
+  for (const c of history.caps) {
+    const k = monthKey(c.month, c.year);
+    if (k <= target && (!cap || k > monthKey(cap.month, cap.year))) cap = c;
   }
 
-  return totalYearlyLimit;
+  // Latest month at or before the target that has any budget data (a cap or categories)
+  let sourceKey = -1;
+  for (const row of [...history.caps, ...history.budgets]) {
+    const k = monthKey(row.month, row.year);
+    if (k <= target && k > sourceKey) sourceKey = k;
+  }
+
+  const categories = history.budgets
+    .filter((b) => monthKey(b.month, b.year) === sourceKey)
+    .map(({ id, category, limit }) => ({ id, category, limit }));
+
+  return {
+    globalLimit: cap ? cap.amount : history.defaultMonthlyBudget,
+    categories,
+    isInherited: sourceKey !== target,
+  };
+}
+
+export async function getBudgetForPeriod(userId: string, month: number, year: number) {
+  const history = await loadHistory(userId, year);
+  return resolveMonth(history, month, year);
+}
+
+// Yearly figures, computed the same way everywhere:
+// - yearlyLimit: the user's own yearly budget if set, else the sum of each month's cap
+// - categoryLimits: each category's limit summed over the 12 months
+export async function getYearlyLimits(userId: string, year: number) {
+  const history = await loadHistory(userId, year);
+
+  let monthlyCapSum = 0;
+  const categoryLimits: Record<string, number> = {};
+
+  for (let m = 0; m < 12; m++) {
+    const resolved = resolveMonth(history, m, year);
+    monthlyCapSum += resolved.globalLimit;
+    for (const c of resolved.categories) {
+      categoryLimits[c.category] = (categoryLimits[c.category] || 0) + c.limit;
+    }
+  }
+
+  return {
+    yearlyLimit: history.yearlyBudget > 0 ? history.yearlyBudget : monthlyCapSum,
+    monthlyCapSum,
+    categoryLimits,
+  };
+}
+
+// Save the inherited budget into the month itself, so an edit to one category
+// doesn't make the month's other inherited categories disappear.
+export async function materializeMonth(userId: string, month: number, year: number) {
+  const [ownCap, ownBudgets] = await Promise.all([
+    prisma.monthlyCap.count({ where: { userId, month, year } }),
+    prisma.budget.count({ where: { userId, month, year } }),
+  ]);
+  if (ownCap > 0 || ownBudgets > 0) return;
+
+  const resolved = await getBudgetForPeriod(userId, month, year);
+
+  await prisma.$transaction([
+    prisma.monthlyCap.upsert({
+      where: { userId_month_year: { userId, month, year } },
+      update: {},
+      create: { userId, month, year, amount: resolved.globalLimit },
+    }),
+    prisma.budget.createMany({
+      data: resolved.categories.map((c) => ({
+        userId,
+        category: c.category,
+        limit: c.limit,
+        month,
+        year,
+      })),
+      skipDuplicates: true,
+    }),
+  ]);
 }

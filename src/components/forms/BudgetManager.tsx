@@ -71,12 +71,9 @@ export default function BudgetManager({
   // 1. Determine which Global Cap to show
   const currentGlobal = viewMode === 'monthly' ? tempMonthly : tempYearly;
   
-  // 2. Determine which "Allocated" amount to compare against
-  // If Monthly: Use simple sum of categories
-  // If Yearly: Use (Sum of Categories * 12)
-  const allocatedComparison = viewMode === 'monthly' 
-    ? totalMonthlyAllocated 
-    : totalMonthlyAllocated * 12;
+  // 2. Allocated amount to compare against. In Yearly view the page already
+  // passes each category's limit summed over the year.
+  const allocatedComparison = totalMonthlyAllocated;
 
   const unallocated = currentGlobal - allocatedComparison;
   
@@ -103,12 +100,10 @@ export default function BudgetManager({
     setIsSaving(true);
     const amount = Number(viewMode === 'monthly' ? tempMonthly : tempYearly);
     
+    // The monthly cap no longer overwrites the yearly budget: the yearly figure is
+    // the user's own yearly budget if set, otherwise the sum of each month's cap.
     if (viewMode === 'monthly') {
-        const updateMonthly = updateGlobalBudget(amount, 'monthly', currentMonth, currentYear);
-        const newYearly = amount * 12;
-        setTempYearly(newYearly); 
-        const updateYearly = updateGlobalBudget(newYearly, 'yearly', currentMonth, currentYear);
-        await Promise.all([updateMonthly, updateYearly]);
+        await updateGlobalBudget(amount, 'monthly', currentMonth, currentYear);
     } else {
         await updateGlobalBudget(amount, 'yearly', currentMonth, currentYear);
     }
@@ -144,10 +139,10 @@ export default function BudgetManager({
     setIsSaving(false);
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (category: string) => {
     if(!confirm("Delete this budget category?")) return;
     setIsSaving(true);
-    await deleteBudget(id);
+    await deleteBudget(category, currentMonth, currentYear);
     router.refresh(); 
     setIsSaving(false);
   }
@@ -182,7 +177,7 @@ export default function BudgetManager({
                         ) : (
                             <>
                                 <li><strong>Yearly Goal:</strong> Your total spending target for the year.</li>
-                                <li><strong>Analysis:</strong> Categories show projected yearly allocations (Monthly x 12).</li>
+                                <li><strong>Analysis:</strong> Categories show each month&apos;s limit added up for the year.</li>
                                 <li><strong>Editing:</strong> To edit specific category amounts, switch back to Monthly view.</li>
                             </>
                         )}
@@ -237,7 +232,10 @@ export default function BudgetManager({
                         <input 
                             type="number" 
                             value={viewMode === 'monthly' ? tempMonthly : tempYearly} 
-                            onChange={(e) => viewMode === 'monthly' ? setTempMonthly(parseFloat(e.target.value)) : setTempYearly(parseFloat(e.target.value))} 
+                            onChange={(e) => {
+                                const value = parseFloat(e.target.value) || 0;
+                                if (viewMode === 'monthly') setTempMonthly(value); else setTempYearly(value);
+                            }} 
                             className="w-full max-w-[200px] bg-transparent border-b-2 border-white/30 focus:border-white text-3xl font-bold focus:outline-none placeholder-white/50" 
                             autoFocus 
                         />
@@ -252,7 +250,7 @@ export default function BudgetManager({
                 ) : (
                     <div className="flex items-center gap-4 group cursor-pointer" onClick={() => setIsEditingGlobal(true)}>
                         <div className="text-3xl sm:text-4xl font-extrabold tracking-tight truncate">
-                            {currencySymbol}{currentGlobal.toLocaleString()}
+                            {currencySymbol}{(currentGlobal || 0).toLocaleString()}
                         </div>
                         <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-white/20 hover:bg-white/30 p-1.5 rounded-full text-white">
                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
@@ -265,7 +263,7 @@ export default function BudgetManager({
           <div className="mt-6 space-y-2">
             <div className="flex flex-col sm:flex-row justify-between text-xs font-medium opacity-80 gap-1">
               <span>
-                 {viewMode === 'monthly' ? 'Total Allocated:' : 'Projected Annual Allocation:'} 
+                 {viewMode === 'monthly' ? 'Total Allocated:' : 'Annual Allocation:'} 
                  <span className="font-bold ml-1">{currencySymbol}{allocatedComparison.toLocaleString()}</span>
               </span>
               <span className={isOverBudget ? "text-red-200 font-bold" : "text-emerald-100 font-bold"}>
@@ -355,7 +353,7 @@ export default function BudgetManager({
       ) : (
         <div className="text-center py-6 bg-muted/20 rounded-xl border border-dashed border-border">
              <p className="text-sm text-muted-foreground">
-                These are your <strong>projected yearly totals</strong> (Monthly × 12).
+                These are your <strong>yearly totals</strong> (each month&apos;s limit added up).
                 <br />Switch to Monthly view to edit.
             </p>
         </div>
@@ -374,7 +372,7 @@ export default function BudgetManager({
                     <div className="min-w-0">
                         <p className="font-bold text-foreground text-sm truncate">{budget.category}</p>
                         <p className="text-xs text-muted-foreground">
-                            {viewMode === 'monthly' ? "Monthly Limit" : "Yearly Projection"}
+                            {viewMode === 'monthly' ? "Monthly Limit" : "Yearly Total"}
                         </p>
                     </div>
                 </div>
@@ -398,14 +396,14 @@ export default function BudgetManager({
                            <p className="font-bold text-foreground text-sm sm:text-base">
                              {/* 👇 THIS IS THE KEY FIX FOR CATEGORY SPLITS */}
                              {currencySymbol}
-                             {(viewMode === 'monthly' ? budget.limit : budget.limit * 12).toLocaleString()}
+                             {budget.limit.toLocaleString()}
                            </p>
                            {viewMode === 'monthly' && (
                                 <div className="flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-200">
                                         <button onClick={() => startEditing(budget)} className="p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-md">
                                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                                         </button>
-                                        <button onClick={() => handleDelete(budget.id)} className="p-1.5 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded-md">
+                                        <button onClick={() => handleDelete(budget.category)} className="p-1.5 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded-md">
                                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                                         </button>
                                 </div>

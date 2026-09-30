@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
 import { uploadToCloudinary } from "@/app/actions/upload";
+import { DEFAULT_CATEGORIES, mergeCategories, normalizeCategory } from "@/lib/categories";
+import { toDateInputValue } from "@/lib/dates";
 
 // --- ICONS (Inline for zero dependencies) ---
 const Icons = {
@@ -23,7 +25,6 @@ type Props = {
 type ToastState = { type: 'success' | 'error', message: string } | null;
 
 export default function UploadReceipt({ budgetCategories, currencySymbol }: Props) {
-  console.log(budgetCategories);
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<"scan" | "manual">("manual");
   
@@ -36,6 +37,10 @@ export default function UploadReceipt({ budgetCategories, currencySymbol }: Prop
   const [preview, setPreview] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [scanResult, setScanResult] = useState<any>(null);
+  const [receipt, setReceipt] = useState<{ url: string; publicId: string } | null>(null);
+
+  // The scanner picks from DEFAULT_CATEGORIES, so those must always be selectable
+  const categoryOptions = mergeCategories(DEFAULT_CATEGORIES, budgetCategories);
   
   // General States
   const [saving, setSaving] = useState(false);
@@ -73,6 +78,7 @@ export default function UploadReceipt({ budgetCategories, currencySymbol }: Prop
     setFile(file);
     setPreview(URL.createObjectURL(file));
     setScanResult(null);
+    setReceipt(null);
   };
 
   // --- ACTIONS ---
@@ -83,6 +89,7 @@ export default function UploadReceipt({ budgetCategories, currencySymbol }: Prop
       const formData = new FormData();
       formData.append("file", file);
       const uploadData = await uploadToCloudinary(formData);
+      setReceipt(uploadData);
       
       const response = await fetch("/api/scan-receipt", {
         method: "POST",
@@ -109,6 +116,8 @@ export default function UploadReceipt({ budgetCategories, currencySymbol }: Prop
       date: formData.get("date"),
       amount: parseFloat(formData.get("total") as string), 
       category: formData.get("category"),
+      // Link the uploaded image when saving a scanned receipt
+      ...(scanResult && receipt ? { receiptUrl: receipt.url, receiptId: receipt.publicId } : {}),
     };
 
     try {
@@ -123,6 +132,7 @@ export default function UploadReceipt({ budgetCategories, currencySymbol }: Prop
         setFile(null);
         setPreview(null);
         setScanResult(null);
+        setReceipt(null);
         setActiveTab("scan"); // Reset to default
         router.refresh();
       } else {
@@ -178,7 +188,7 @@ export default function UploadReceipt({ budgetCategories, currencySymbol }: Prop
             name="date" 
             type="date" 
             required
-            defaultValue={initialData?.date ? new Date(initialData.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]} 
+            defaultValue={initialData?.date || toDateInputValue()} 
             className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
           />
         </div>
@@ -191,14 +201,13 @@ export default function UploadReceipt({ budgetCategories, currencySymbol }: Prop
           <select 
             name="category" 
             required
-            defaultValue={initialData?.category || ""}
+            defaultValue={initialData?.category ? normalizeCategory(initialData.category) : ""}
             className="w-full appearance-none bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 rounded-xl px-4 py-3 pr-10 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-pointer"
           >
             <option value="" disabled>Select a category...</option>
-            {budgetCategories.map((cat) => (
+            {categoryOptions.map((cat) => (
               <option key={cat} value={cat}>{cat}</option>
             ))}
-            <option value="Uncategorized">Uncategorized</option>
           </select>
           <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-500">
             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
@@ -325,7 +334,7 @@ export default function UploadReceipt({ budgetCategories, currencySymbol }: Prop
                       <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300" />
                       
                       <button 
-                        onClick={() => { setFile(null); setPreview(null); }}
+                        onClick={() => { setFile(null); setPreview(null); setReceipt(null); }}
                         className="absolute top-3 right-3 p-2 bg-white/90 dark:bg-slate-950/90 text-slate-600 dark:text-slate-300 rounded-full shadow-sm hover:text-red-500 transition-colors"
                       >
                          <Icons.X />

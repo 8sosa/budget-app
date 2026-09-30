@@ -4,6 +4,10 @@ import { redirect } from "next/navigation";
 import prisma from "@/lib/prisma";
 import BudgetManager from "@/components/forms/BudgetManager";
 import DateFilter from "@/components/ui/DateFilter";
+import { getBudgetForPeriod, getYearlyLimits } from "@/lib/budgetUtils";
+import { normalizeCategory } from "@/lib/categories";
+import { periodRange } from "@/lib/dates";
+import { toNumber } from "@/lib/utils";
 
 type Props = {
   searchParams: Promise<{ month?: string; year?: string; view?: string }>;
@@ -19,81 +23,46 @@ export default async function BudgetPage(props: Props) {
   const currentYear = searchParams.year ? parseInt(searchParams.year) : now.getFullYear();
   const viewMode = (searchParams.view as "monthly" | "yearly") || "monthly";
 
-  // 1. Determine Date Range for SPENDING (Transactions)
-  let startDate, endDate;
-  
-  if (viewMode === "yearly") {
-    startDate = new Date(currentYear, 0, 1);
-    endDate = new Date(currentYear, 11, 31, 23, 59, 59);
-  } else {
-    startDate = new Date(currentYear, currentMonth, 1);
-    endDate = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59);
-  }
+  // 1. Date Range for SPENDING (UTC, matching how transaction dates are stored)
+  const range = periodRange(viewMode, currentMonth, currentYear);
 
   // 2. Fetch User
   const user = await prisma.user.findUnique({
     where: { email: session.user.email },
-    include: {
-      monthlyCaps: {
-        where: { month: currentMonth, year: currentYear },
-      },
-    },
+    select: { id: true, currency: true },
   });
 
   if (!user) redirect("/login");
 
-  // =========================================================================
-  // 3. FETCH DATA FOR BUDGET MANAGER (Top Section)
-  // =========================================================================
-  // FIX: We ALWAYS fetch the current month's budget items for the manager.
-  // Even in "Yearly" mode, the manager needs the monthly splits to 
-  // calculate the projection (Monthly * 12).
-  const currentMonthBudgets = await prisma.budget.findMany({
-    where: {
-      userId: user.id,
-      year: currentYear,
-      month: currentMonth, 
-    },
-  });
+  // 3. Budget for the selected month (inherited from earlier months if it has none of its own)
+  const monthBudget = await getBudgetForPeriod(user.id, currentMonth, currentYear);
+  const yearly = await getYearlyLimits(user.id, currentYear);
 
-  const managerBudgets = currentMonthBudgets.map(b => ({
-    id: b.id, 
-    category: b.category, 
-    limit: b.limit 
-  }));
+  // Manager list: the month's categories, or each category summed over the year
+  const managerBudgets = viewMode === "yearly"
+    ? Object.entries(yearly.categoryLimits).map(([category, limit]) => ({ id: category, category, limit }))
+    : monthBudget.categories;
 
-  // =========================================================================
-  // 4. FETCH DATA FOR ANALYSIS (Bottom Section)
-  // =========================================================================
-  // FIX: For the analysis charts, we might want the aggregate of the whole year
-  // if we are in Yearly view, or just the month if in Monthly view.
-  const rawAnalysisBudgets = await prisma.budget.findMany({
-    where: {
-      userId: user.id,
-      year: currentYear,
-      // If monthly, strictly filter by month. 
-      // If yearly, fetch ALL months to sum them up for "Total Budgeted".
-      ...(viewMode === "monthly" ? { month: currentMonth } : {}),
-    },
-  });
+  // 4. Limits for the analysis cards (same figures as the manager and the dashboard)
+  const budgetLimits: Record<string, number> = {};
+  for (const b of managerBudgets) budgetLimits[b.category] = b.limit;
 
-  // Calculate limits for the bottom analysis
-const budgetLimits = currentMonthBudgets.reduce((acc, b) => {
-    const multiplier = viewMode === "yearly" ? 12 : 1;
-    acc[b.category] = b.limit * multiplier;
-    return acc;
-  }, {} as Record<string, number>);
-
-
-  // 5. Fetch Spending
-  const spending = await prisma.transaction.groupBy({
+  // 5. Fetch Spending, merged by normalized category name
+  const spendingRows = await prisma.transaction.groupBy({
     by: ["category"],
     where: { 
-      userId: session.user.id,
-      date: { gte: startDate, lte: endDate }
+      userId: user.id,
+      date: range,
     },
     _sum: { amount: true },
   });
+
+  const spentByCategory: Record<string, number> = {};
+  for (const row of spendingRows) {
+    const cat = normalizeCategory(row.category);
+    spentByCategory[cat] = (spentByCategory[cat] || 0) + toNumber(row._sum.amount);
+  }
+  const spending = Object.entries(spentByCategory).map(([category, spent]) => ({ category, spent }));
 
   // 6. Previous Month Logic
   const prevDate = new Date(currentYear, currentMonth - 1, 1);
@@ -101,12 +70,8 @@ const budgetLimits = currentMonthBudgets.reduce((acc, b) => {
     where: { userId: user.id, month: prevDate.getMonth(), year: prevDate.getFullYear() },
   });
 
-  const activeMonthlyCap = user.monthlyCaps[0]?.amount ?? user.defaultMonthlyBudget ?? 0;
-  
-  // Smart Yearly Cap Calculation
-  const activeYearlyCap = (user.yearlyBudget && user.yearlyBudget > 0)
-    ? user.yearlyBudget
-    : activeMonthlyCap * 12;
+  const activeMonthlyCap = monthBudget.globalLimit;
+  const activeYearlyCap = yearly.yearlyLimit;
 
   const currency = user?.currency || "$";
 
@@ -148,7 +113,7 @@ const budgetLimits = currentMonthBudgets.reduce((acc, b) => {
 
             <div className="grid md:grid-cols-2 gap-6">
                 {spending.map((category) => {
-                    const spent = category._sum.amount || 0;
+                    const spent = category.spent;
                     const limit = budgetLimits[category.category] || 0; 
                     const percent = limit > 0 ? Math.min((spent / limit) * 100, 100) : (spent > 0 ? 100 : 0);
                     const isOver = limit > 0 && spent > limit;
@@ -160,8 +125,7 @@ const budgetLimits = currentMonthBudgets.reduce((acc, b) => {
                                     <h3 className="font-semibold text-lg capitalize">{category.category}</h3>
                                     {limit > 0 && (
                                         <p className="text-xs text-slate-400">
-                                            {/* Note: In Yearly view, this is "Historical Budget" (sum of all months), not Projected */}
-                                            {viewMode === "yearly" ? "Yearly Budget (Sum)" : "Limit"}: {currency}{limit.toLocaleString()}
+                                            {viewMode === "yearly" ? "Yearly Budget" : "Limit"}: {currency}{limit.toLocaleString()}
                                         </p>
                                     )}
                                 </div>

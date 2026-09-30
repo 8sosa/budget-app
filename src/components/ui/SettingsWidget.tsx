@@ -59,7 +59,7 @@ export default function SettingsWidget({ currentCurrency }: { currentCurrency: s
       
       // Only trigger server update if the detected one is different from current default
       if (detected !== currentCurrency) {
-        updateCurrency(detected);
+        updateCurrency(detected, { auto: true });
       }
 
       // Mark that we have set the preference so we don't overwrite it later
@@ -68,7 +68,15 @@ export default function SettingsWidget({ currentCurrency }: { currentCurrency: s
   }, [currentCurrency, getDetectedSymbol]);
 
   // --- HANDLER: MANUAL CHANGE ---
+  const confirmSwitch = (symbol: string) =>
+    symbol === currentCurrency ||
+    confirm(
+      "Change currency? New transactions will be saved in the new currency. " +
+      "Existing amounts are not converted, and past transactions keep their original currency."
+    );
+
   const handleCurrencyChange = async (symbol: string) => {
+    if (!confirmSwitch(symbol)) return;
     // User manually chose, so we ensure the flag is set
     localStorage.setItem("currency_preference_set", "true");
     
@@ -81,7 +89,7 @@ export default function SettingsWidget({ currentCurrency }: { currentCurrency: s
     setDetecting(true);
     const detectedSymbol = getDetectedSymbol();
     
-    if (detectedSymbol !== currentCurrency) {
+    if (detectedSymbol !== currentCurrency && confirmSwitch(detectedSymbol)) {
       await updateCurrency(detectedSymbol);
     }
     

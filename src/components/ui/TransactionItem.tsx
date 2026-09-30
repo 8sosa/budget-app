@@ -4,6 +4,7 @@ import { deleteTransaction } from "@/app/actions/transaction";
 import { useState } from "react";
 import { format } from "date-fns";
 import { useRouter } from "next/navigation";
+import toast from "react-hot-toast";
 
 type Props = {
   id: string;
@@ -45,7 +46,13 @@ export default function TransactionItem({ id, description, amount, date, categor
     e.stopPropagation(); // Stop click from bubbling to the parent div
     if (!confirm("Are you sure you want to delete this transaction?")) return;
     setIsDeleting(true);
-    await deleteTransaction(id);
+    const result = await deleteTransaction(id);
+    if (result?.error) {
+      setIsDeleting(false);
+      toast.error(result.error);
+      return;
+    }
+    router.refresh();
   };
 
   const handleClick = () => {

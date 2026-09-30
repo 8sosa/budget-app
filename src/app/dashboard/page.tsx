@@ -9,7 +9,10 @@ import UploadReceipt from "@/components/forms/uploadReceipt";
 import SpendingChart from "@/components/charts/SpendingChart";
 import TransactionItem from "@/components/ui/TransactionItem";
 import DateFilter from "@/components/ui/DateFilter";
-import { getBudgetForPeriod, getYearlyTotalLimit } from "@/lib/budgetUtils";
+import { getBudgetForPeriod, getYearlyLimits } from "@/lib/budgetUtils";
+import { normalizeCategory } from "@/lib/categories";
+import { periodRange } from "@/lib/dates";
+import { toNumber } from "@/lib/utils";
 
 // --- DECORATIVE ICONS ---
 const BackgroundDecorations = () => (
@@ -46,31 +49,16 @@ export default async function Dashboard({
   const month = typeof params.month === 'string' ? parseInt(params.month) : today.getMonth();
   const viewMode = typeof params.view === 'string' ? params.view : 'monthly';
 
-  // 1. Determine Date Range
-  let startDate: Date, endDate: Date;
-
-  if (viewMode === 'yearly') {
-    startDate = new Date(year, 0, 1);
-    endDate = new Date(year + 1, 0, 0, 23, 59, 59); // End of year
-  } else {
-    startDate = new Date(year, month, 1);
-    endDate = new Date(year, month + 1, 0, 23, 59, 59); // End of month
-  }
+  // 1. Determine Date Range (UTC, matching how transaction dates are stored)
+  const range = periodRange(viewMode, month, year);
 
   // 2. Fetch Data
   const user = await prisma.user.findUnique({
     where: { email: session.user?.email! },
     include: {
       transactions: {
-        where: { date: { gte: startDate, lte: endDate } },
+        where: { date: range },
         orderBy: { date: 'desc' },
-      },
-      // We fetch the CURRENT month's budget to use as a baseline for calculations
-      budgets: {
-        where: {
-          month: month,
-          year: year
-        }
       },
     }
   });
@@ -83,22 +71,26 @@ export default async function Dashboard({
   const spendingByCategory: Record<string, number> = {};
 
   user.transactions.forEach((t) => {
-    const cat = t.category || "Other";
-    spendingByCategory[cat] = (spendingByCategory[cat] || 0) + t.amount;
-    totalSpent += t.amount;
+    const cat = normalizeCategory(t.category);
+    const amount = toNumber(t.amount);
+    spendingByCategory[cat] = (spendingByCategory[cat] || 0) + amount;
+    totalSpent += amount;
   });
 
-  // Calculate Global Limits
-  let activeBudgetLimit = 0;
-  const { globalLimit } = await getBudgetForPeriod(session.user?.email!, month, year);
-  
-  // FIX: If yearly, ensure the main card limit matches the view
+  // Limits for the selected month, inherited from earlier months if it has none of its own
+  const monthBudget = await getBudgetForPeriod(user.id, month, year);
+
+  // Category limits shown in this view: the month's own, or each category summed over the year
+  let activeBudgetLimit: number;
+  let categoryLimits: { id: string; category: string; limit: number }[];
+
   if (viewMode === 'yearly') {
-    const yearlyTotal = await getYearlyTotalLimit(session.user?.email!, year);
-    // If user has a specific yearly budget set, use it. Otherwise, project monthly * 12
-    activeBudgetLimit = yearlyTotal > 0 ? yearlyTotal : globalLimit * 12;
+    const yearly = await getYearlyLimits(user.id, year);
+    activeBudgetLimit = yearly.yearlyLimit;
+    categoryLimits = Object.entries(yearly.categoryLimits).map(([category, limit]) => ({ id: category, category, limit }));
   } else {
-    activeBudgetLimit = globalLimit;
+    activeBudgetLimit = monthBudget.globalLimit;
+    categoryLimits = monthBudget.categories;
   }
   
   const totalPercentage = activeBudgetLimit > 0 ? Math.min(100, (totalSpent / activeBudgetLimit) * 100) : 0;
@@ -106,7 +98,7 @@ export default async function Dashboard({
   const remaining = activeBudgetLimit - totalSpent;
   
   const chartData = Object.entries(spendingByCategory).map(([name, value]) => ({ name, value }));
-  const budgetCategories = user.budgets.map((b) => b.category);
+  const budgetCategories = monthBudget.categories.map((b) => b.category);
 
   return (
     <div className="relative min-h-screen bg-background text-foreground overflow-x-hidden transition-colors duration-500 selection:bg-primary/20">
@@ -206,19 +198,15 @@ export default async function Dashboard({
                     <span className="text-primary text-xl">🎯</span> Category Limits
                 </h2>
                 
-                {user.budgets.length === 0 ? (
+                {categoryLimits.length === 0 ? (
                   <p className="text-muted-foreground text-sm">No specific category limits set.</p>
                 ) : (
                   <div className="space-y-6">
-                    {user.budgets.map(budget => {
+                    {categoryLimits.map(budget => {
                       const spent = spendingByCategory[budget.category] || 0;
-                      
-                      // FIX: Adjust Limit based on View Mode
-                      // If Yearly, we multiply the monthly limit by 12 to create a "Projected Annual Limit"
-                      const multiplier = viewMode === 'yearly' ? 12 : 1;
-                      const effectiveLimit = budget.limit * multiplier;
+                      const effectiveLimit = budget.limit;
 
-                      const percentage = Math.min(100, (spent / effectiveLimit) * 100);
+                      const percentage = effectiveLimit > 0 ? Math.min(100, (spent / effectiveLimit) * 100) : (spent > 0 ? 100 : 0);
                       const isOver = spent > effectiveLimit;
                       
                       return (
@@ -261,10 +249,10 @@ export default async function Dashboard({
                         <TransactionItem 
                             id={t.id}
                             description={t.description || "Unknown"}
-                            amount={t.amount}
+                            amount={toNumber(t.amount)}
                             date={t.date}
-                            category={t.category}
-                            currency={currency} 
+                            category={normalizeCategory(t.category)}
+                            currency={t.currency || currency} 
                             hasReceipt={!!t.receiptUrl}
                         />
                     </div>

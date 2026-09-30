@@ -1,13 +1,22 @@
 "use server";
 
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import cloudinary from "@/lib/cloudinary";
 
+const MAX_BYTES = 5 * 1024 * 1024; // matches "Max 5MB" in the upload form
+
 export async function uploadToCloudinary(formData: FormData) {
-  const file = formData.get("file") as File;
-  
-  if (!file) {
+  // Server actions are public endpoints; only signed-in users may upload
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.email) throw new Error("Unauthorized");
+
+  const file = formData.get("file");
+  if (!(file instanceof File)) {
     throw new Error("No file provided");
   }
+  if (!file.type.startsWith("image/")) throw new Error("Only image files are supported");
+  if (file.size > MAX_BYTES) throw new Error("Image must be 5MB or smaller");
 
   // Convert file to buffer for Cloudinary
   const arrayBuffer = await file.arrayBuffer();

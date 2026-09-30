@@ -29,7 +29,7 @@ export const authOptions: NextAuthOptions = {
 
         // 2. Find user in DB
         const user = await prisma.user.findUnique({
-          where: { email: credentials.email },
+          where: { email: credentials.email.trim().toLowerCase() },
         });
 
         // 3. If no user or no password (e.g. Google-only account), fail

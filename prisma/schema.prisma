@@ -5,14 +5,14 @@ generator client {
 }
 
 datasource db {
-  provider = "mongodb"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
 // --- NextAuth Models ---
 
 model User {
-  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  id            String    @id @default(cuid())
   name          String?
   email         String?   @unique
   emailVerified DateTime?
@@ -21,27 +21,27 @@ model User {
   currency      String    @default("₦")
   accounts      Account[]
   sessions      Session[]
-  
-  defaultMonthlyBudget Float     @default(0) 
-  yearlyBudget         Float     @default(0)
-   
-  transactions  Transaction[]
-  budgets       Budget[]
-  monthlyCaps   MonthlyCap[]   // Relation to history
+
+  defaultMonthlyBudget Decimal @default(0) @db.Decimal(14, 2)
+  yearlyBudget         Decimal @default(0) @db.Decimal(14, 2)
+
+  transactions Transaction[]
+  budgets      Budget[]
+  monthlyCaps  MonthlyCap[] // Relation to history
 }
 
 model Account {
-  id                String  @id @default(auto()) @map("_id") @db.ObjectId
-  userId            String  @db.ObjectId
+  id                String  @id @default(cuid())
+  userId            String
   type              String
   provider          String
   providerAccountId String
-  refresh_token     String? @db.String
-  access_token      String? @db.String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String? @db.String
+  id_token          String? @db.Text
   session_state     String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -50,9 +50,9 @@ model Account {
 }
 
 model Session {
-  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  id           String   @id @default(cuid())
   sessionToken String   @unique
-  userId       String   @db.ObjectId
+  userId       String
   expires      DateTime
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
@@ -60,45 +60,47 @@ model Session {
 // --- Custom Budget App Models ---
 
 model Transaction {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  userId      String   @db.ObjectId
-  amount      Float
-  currency    String   @default("USD")
-  category    String   
-  description String?  
-  date        DateTime @default(now())
+  id          String   @id @default(cuid())
+  userId      String
+  amount      Decimal  @db.Decimal(14, 2)
+  currency    String   @default("₦") // symbol of the user's currency when saved
+  category    String
+  description String?
+  date        DateTime @default(now()) // calendar date, stored at 12:00 UTC
   receiptUrl  String?
-  receiptId   String?  
+  receiptId   String?
 
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, date])
 }
 
 model MonthlyCap {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  userId    String   @db.ObjectId
-  month     Int      // 0 = Jan, 11 = Dec
-  year      Int      // e.g. 2024
-  amount    Float    // The limit for THIS specific month
+  id     String  @id @default(cuid())
+  userId String
+  month  Int // 0 = Jan, 11 = Dec
+  year   Int // e.g. 2024
+  amount Decimal @db.Decimal(14, 2) // The limit for THIS specific month
 
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, month, year]) // Prevent duplicate caps for same month
 }
 
 // ✅ UPDATED MODEL: Categories are now time-specific
 model Budget {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  userId    String   @db.ObjectId
-  category  String
-  limit     Float    
-  period    String   @default("monthly")
+  id       String  @id @default(cuid())
+  userId   String
+  category String
+  limit    Decimal @db.Decimal(14, 2)
+  period   String  @default("monthly")
 
   // Time Stamping
-  month     Int      
-  year      Int      
+  month Int
+  year  Int
 
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   // Critical: Allows "Food" in Jan AND "Food" in Feb
-  @@unique([userId, category, month, year]) 
+  @@unique([userId, category, month, year])
 }

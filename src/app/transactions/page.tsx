@@ -6,6 +6,9 @@ import TransactionItem from "@/components/ui/TransactionItem";
 import Link from "next/link";
 import CategoryFilter from "@/components/ui/CategoryFilter";
 import DateFilter from "@/components/ui/DateFilter";
+import { mergeCategories, normalizeCategory } from "@/lib/categories";
+import { periodRange } from "@/lib/dates";
+import { toNumber } from "@/lib/utils";
 
 type Props = {
   searchParams: Promise<{ 
@@ -27,21 +30,11 @@ export default async function TransactionsPage(props: Props) {
   const currentYear = searchParams.year ? parseInt(searchParams.year) : now.getFullYear();
   const viewMode = searchParams.view || "monthly"; // 2. Default to monthly
 
-  // 3. Dynamic Date Logic
-  let startDate, endDate;
-  let dateLabel;
-
-  if (viewMode === "yearly") {
-    // YEARLY: Jan 1st to Dec 31st of selected year
-    startDate = new Date(currentYear, 0, 1);
-    endDate = new Date(currentYear, 11, 31, 23, 59, 59);
-    dateLabel = `${currentYear}`;
-  } else {
-    // MONTHLY: 1st to Last day of selected month
-    startDate = new Date(currentYear, currentMonth, 1);
-    endDate = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59);
-    dateLabel = `${startDate.toLocaleString('default', { month: 'long' })} ${currentYear}`;
-  }
+  // 3. Dynamic Date Logic (UTC, matching how transaction dates are stored)
+  const range = periodRange(viewMode, currentMonth, currentYear);
+  const dateLabel = viewMode === "yearly"
+    ? `${currentYear}`
+    : `${new Date(currentYear, currentMonth, 1).toLocaleString('default', { month: 'long' })} ${currentYear}`;
 
   const categoryFilter = searchParams.category;
 
@@ -49,15 +42,12 @@ export default async function TransactionsPage(props: Props) {
     by: ['category'],
     where: { userId: session.user.id },
   });
-  const categoryList = uniqueCategories.map(c => c.category);
+  const categoryList = mergeCategories(uniqueCategories.map(c => c.category));
 
   const transactions = await prisma.transaction.findMany({
     where: { 
       userId: session.user.id,
-      date: {
-        gte: startDate,
-        lte: endDate,
-      },
+      date: range,
       ...(categoryFilter ? { 
         category: {
             equals: categoryFilter,
@@ -111,10 +101,10 @@ export default async function TransactionsPage(props: Props) {
               key={t.id}
               id={t.id}
               description={t.description || "Unknown"}
-              amount={t.amount}
+              amount={toNumber(t.amount)}
               date={t.date}
-              category={t.category}
-              currency={currency}
+              category={normalizeCategory(t.category)}
+              currency={t.currency || currency}
               hasReceipt={!!t.receiptUrl}
             />
           ))

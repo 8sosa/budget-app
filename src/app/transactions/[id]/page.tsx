@@ -4,6 +4,7 @@ import { redirect, notFound } from "next/navigation";
 import prisma from "@/lib/prisma";
 import Link from "next/link";
 import { format } from "date-fns";
+import { toNumber } from "@/lib/utils";
 
 // ✅ FIX 1: Update type to be a Promise
 type Props = {
@@ -32,12 +33,8 @@ export default async function TransactionDetailsPage({ params }: Props) {
     return <div className="p-8 text-center text-red-500">Access Denied</div>;
   }
 
-  const dbUser = await prisma.user.findUnique({
-    where: { id: user.id },
-    select: { currency: true }
-  });
-  
-  const currency = dbUser?.currency || "$";
+  // Shown in the currency it was saved in
+  const currency = transaction.currency;
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
@@ -64,12 +61,12 @@ export default async function TransactionDetailsPage({ params }: Props) {
                 {transaction.description || "Transaction Details"}
               </h1>
               <p className="text-slate-500 dark:text-slate-400 mt-1">
-                {format(new Date(transaction.date), "PPP 'at' p")}
+                {format(new Date(transaction.date), "PPP")}
               </p>
             </div>
             <div className="text-right">
               <span className="block text-3xl font-bold text-slate-900 dark:text-white">
-                {currency}{transaction.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                {currency}{toNumber(transaction.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
               </span>
             </div>
           </div>

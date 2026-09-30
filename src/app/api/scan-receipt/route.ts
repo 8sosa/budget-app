@@ -2,27 +2,27 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import OpenAI from "openai";
+import { authOptions } from "@/lib/auth";
+import { normalizeCategory } from "@/lib/categories";
+import { parseDateOnly } from "@/lib/dates";
 
-// Only use OpenAI (Simpler & More Robust)
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export async function POST(req: Request) {
   try {
     // 1. Authenticate
-    const session = await getServerSession();
+    const session = await getServerSession(authOptions);
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     // 2. Get Image URL
     const { imageUrl } = await req.json();
-    if (!imageUrl) {
+    if (typeof imageUrl !== "string" || !imageUrl.startsWith("https://res.cloudinary.com/")) {
       return NextResponse.json({ error: "No image URL provided" }, { status: 400 });
     }
 
-    console.log("Processing receipt with OpenAI:", imageUrl);
-
-    // 3. Ask GPT-4o to extract data
+    // 3. Ask GPT-4o to extract data (client created per request so builds don't need the key)
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const completion = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: [
@@ -61,10 +61,11 @@ export async function POST(req: Request) {
       source: "openai",
       data: {
         merchant: data.merchant || "Unknown Merchant",
-        date: data.date || new Date().toISOString(),
-        total: data.total || 0,
+        // Only pass on a real YYYY-MM-DD date; the form falls back to today
+        date: parseDateOnly(data.date) ? data.date.slice(0, 10) : null,
+        total: Number(data.total) > 0 ? Number(data.total) : 0,
         currency: data.currency || "USD",
-        category: data.category || "Other",
+        category: normalizeCategory(data.category),
         recipient: data.recipient || ""
       }
     });
