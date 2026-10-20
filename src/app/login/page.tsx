@@ -6,6 +6,16 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import toast from "react-hot-toast"; // Ideally install react-hot-toast, or use alert()
 
+// Friendly text for the ?error= codes NextAuth sends back to this page
+const AUTH_ERRORS: Record<string, string> = {
+  OAuthAccountNotLinked:
+    "This email is already registered with a different sign-in method. Sign in with your password instead.",
+  OAuthSignin: "Couldn't start Google sign-in. Please try again.",
+  OAuthCallback: "Google sign-in didn't complete. Please try again.",
+  AccessDenied: "Access was denied.",
+  Configuration: "Sign-in is misconfigured on the server. Please try again later.",
+};
+
 export default function AuthPage() {
   const session = useSession();
   const router = useRouter();
@@ -16,6 +26,12 @@ export default function AuthPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const code = new URLSearchParams(window.location.search).get("error");
+    if (code) setAuthError(AUTH_ERRORS[code] ?? "Sign-in failed. Please try again.");
+  }, []);
 
   useEffect(() => {
     if (session?.status === "authenticated") {
@@ -100,6 +116,12 @@ export default function AuthPage() {
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white px-4 py-8 shadow-xl shadow-slate-200 sm:rounded-xl sm:px-10 border border-slate-100">
           
+          {authError && (
+            <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              {authError}
+            </div>
+          )}
+
           <form className="space-y-6" onSubmit={handleSubmit}>
             
             {/* NAME INPUT (Register only) */}
