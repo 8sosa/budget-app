@@ -106,6 +106,7 @@ export default async function TransactionsPage(props: Props) {
               category={normalizeCategory(t.category)}
               currency={t.currency || currency}
               hasReceipt={!!t.receiptUrl}
+              type={t.type}
             />
           ))
         ) : (

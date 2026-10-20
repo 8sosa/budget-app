@@ -14,6 +14,7 @@ type Props = {
   category: string;
   currency: string;
   hasReceipt?: boolean; // New prop to show receipt icon
+  type?: string; // "expense" (default) or "income"
 };
 
 const getCategoryStyle = (cat: string) => {
@@ -37,7 +38,8 @@ const getCategoryStyle = (cat: string) => {
   return { wrapper: "bg-slate-100 text-slate-600 dark:bg-indigo-500/10 dark:text-indigo-400 ring-slate-500/20", icon: "💳" };
 };
 
-export default function TransactionItem({ id, description, amount, date, category, currency, hasReceipt }: Props) {
+export default function TransactionItem({ id, description, amount, date, category, currency, hasReceipt, type }: Props) {
+  const isIncome = type === "income";
   const router = useRouter();
   const [isDeleting, setIsDeleting] = useState(false);
   const style = getCategoryStyle(category || "other");
@@ -106,8 +108,8 @@ export default function TransactionItem({ id, description, amount, date, categor
 
       {/* RIGHT SIDE: Amount & Delete */}
       <div className="flex items-center gap-3 sm:gap-5 ml-2 sm:ml-4">
-        <span className="font-bold text-slate-900 dark:text-white text-sm sm:text-base whitespace-nowrap">
-          - {currency}{amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+        <span className={`font-bold text-sm sm:text-base whitespace-nowrap ${isIncome ? "text-emerald-600 dark:text-emerald-400" : "text-slate-900 dark:text-white"}`}>
+          {isIncome ? "+" : "-"} {currency}{amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
         </span>
 
         <button 

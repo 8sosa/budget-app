@@ -69,9 +69,13 @@ model Transaction {
   date        DateTime @default(now()) // calendar date, stored at 12:00 UTC
   receiptUrl  String?
   receiptId   String?
+  type        String   @default("expense") // "expense" or "income"
+  source      String   @default("manual") // "manual", or the bank a statement was imported from
+  externalId  String? // fingerprint of an imported statement line, so re-imports skip it
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@unique([userId, externalId])
   @@index([userId, date])
 }
 

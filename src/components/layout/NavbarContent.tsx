@@ -9,6 +9,7 @@ import UserAccountNav from "../ui/UserAccountNav";
 const navLinks = [
     { name: "Overview", href: "/dashboard" },
     { name: "Transactions", href: "/transactions" },
+    { name: "Import", href: "/import" },
     { name: "Budget", href: "/budget" },
     { name: "Profile", href: "/profile" },
 ];

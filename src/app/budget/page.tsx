@@ -52,6 +52,7 @@ export default async function BudgetPage(props: Props) {
     by: ["category"],
     where: { 
       userId: user.id,
+      type: "expense",
       date: range,
     },
     _sum: { amount: true },

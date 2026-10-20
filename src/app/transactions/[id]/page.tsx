@@ -65,8 +65,8 @@ export default async function TransactionDetailsPage({ params }: Props) {
               </p>
             </div>
             <div className="text-right">
-              <span className="block text-3xl font-bold text-slate-900 dark:text-white">
-                {currency}{toNumber(transaction.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+              <span className={`block text-3xl font-bold ${transaction.type === "income" ? "text-emerald-600 dark:text-emerald-400" : "text-slate-900 dark:text-white"}`}>
+                {transaction.type === "income" ? "+" : ""}{currency}{toNumber(transaction.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
               </span>
             </div>
           </div>

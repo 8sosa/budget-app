@@ -34,3 +34,13 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## Importing bank statements
+
+`/import` reads statement exports (CSV, Excel `.xlsx`, or PDF) from OPay, Access Bank, or any bank whose export has Date, Description and Debit/Credit (or Amount) columns. You review every line before it's saved, and lines imported before are skipped, so overlapping statements are safe to upload.
+
+- CSV and Excel are parsed on the server with no third-party service.
+- PDF pages are read with OpenAI (same `OPENAI_API_KEY` as receipt scanning). Password-protected PDFs are supported.
+- Money in is stored as income and never counts against budgets.
+
+Run the parser tests with `npm test`.

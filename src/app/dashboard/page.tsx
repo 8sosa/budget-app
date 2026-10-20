@@ -68,11 +68,17 @@ export default async function Dashboard({
 
   // 3. Aggregations & Calculations
   let totalSpent = 0;
+  let totalIncome = 0;
   const spendingByCategory: Record<string, number> = {};
 
   user.transactions.forEach((t) => {
-    const cat = normalizeCategory(t.category);
     const amount = toNumber(t.amount);
+    // Money in never counts against the budget
+    if (t.type === "income") {
+      totalIncome += amount;
+      return;
+    }
+    const cat = normalizeCategory(t.category);
     spendingByCategory[cat] = (spendingByCategory[cat] || 0) + amount;
     totalSpent += amount;
   });
@@ -128,6 +134,15 @@ export default async function Dashboard({
                               / {currency}{activeBudgetLimit.toLocaleString()}
                           </span>
                       </div>
+                      {totalIncome > 0 && (
+                        <p className="text-sm text-muted-foreground mt-2">
+                          Income <span className="font-semibold text-emerald-500">{currency}{totalIncome.toLocaleString()}</span>
+                          {" · "}Net{" "}
+                          <span className={`font-semibold ${totalIncome >= totalSpent ? "text-emerald-500" : "text-red-500"}`}>
+                            {totalIncome >= totalSpent ? "+" : "-"}{currency}{Math.abs(totalIncome - totalSpent).toLocaleString()}
+                          </span>
+                        </p>
+                      )}
                   </div>
 
                   <div className={`w-full md:w-auto p-4 rounded-xl border border-border/50 text-left md:text-right 
@@ -164,9 +179,17 @@ export default async function Dashboard({
             <div className="space-y-6 md:space-y-8 order-2 lg:order-1">
               
               <section className="bg-card/80 backdrop-blur-sm p-6 rounded-2xl shadow-sm border border-border hover:border-secondary/40 transition-all duration-300">
-                  <h2 className="text-lg font-bold text-foreground mb-4 flex items-center gap-2">
-                    <span className="text-secondary text-xl">➕</span> Add Transaction
-                  </h2>
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
+                      <span className="text-secondary text-xl">➕</span> Add Transaction
+                    </h2>
+                    <Link
+                      href="/import"
+                      className="text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:underline hover:opacity-80 transition-opacity"
+                    >
+                      Import statement &rarr;
+                    </Link>
+                  </div>
                   <UploadReceipt budgetCategories={budgetCategories} currencySymbol={currency} />
               </section>
 
@@ -254,6 +277,7 @@ export default async function Dashboard({
                             category={normalizeCategory(t.category)}
                             currency={t.currency || currency} 
                             hasReceipt={!!t.receiptUrl}
+                            type={t.type}
                         />
                     </div>
                   ))}
