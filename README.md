@@ -44,3 +44,18 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 - Money in is stored as income and never counts against budgets.
 
 Run the parser tests with `npm test`.
+
+## Live bank sync (Mono)
+
+The **Linked bank accounts** card on `/import` links OPay, Access Bank and other Nigerian banks through [Mono Connect](https://mono.co) and pulls their transactions on **Sync now**. It's off until both keys are set:
+
+```
+MONO_SECRET_KEY=live_sk_...            # server only
+NEXT_PUBLIC_MONO_PUBLIC_KEY=live_pk_...
+```
+
+- The first sync fetches the last 12 months. Later syncs fetch from the last sync, minus 7 days to catch late postings.
+- Lines already imported from a statement (same day, direction and amount) are skipped, so uploading statements and syncing don't double count.
+- Unlinking keeps the transactions already synced.
+
+`src/app/actions/__tests__/mono.db.test.ts` runs against a real Postgres when `TEST_DATABASE_URL` is set.

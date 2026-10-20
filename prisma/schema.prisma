@@ -25,8 +25,9 @@ model User {
   defaultMonthlyBudget Decimal @default(0) @db.Decimal(14, 2)
   yearlyBudget         Decimal @default(0) @db.Decimal(14, 2)
 
-  transactions Transaction[]
-  budgets      Budget[]
+  transactions    Transaction[]
+  budgets         Budget[]
+  bankConnections BankConnection[]
   monthlyCaps  MonthlyCap[] // Relation to history
 }
 
@@ -107,4 +108,21 @@ model Budget {
 
   // Critical: Allows "Food" in Jan AND "Food" in Feb
   @@unique([userId, category, month, year])
+}
+
+// A bank account linked through an open-banking provider (Mono), synced on demand
+model BankConnection {
+  id                String    @id @default(cuid())
+  userId            String
+  provider          String    @default("mono")
+  providerAccountId String    @unique // Mono account id; doesn't expire unless unlinked
+  institution       String? // e.g. "OPay", "Access Bank"
+  accountName       String?
+  accountNumber     String? // last 4 digits only
+  lastSyncedAt      DateTime?
+  createdAt         DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
